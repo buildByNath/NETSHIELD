@@ -48,3 +48,9 @@ class ValidationResult(BaseModel):
     valid: bool
     errors: List[str]
     warnings: List[str]
+
+class SimulationRequest(BaseModel):
+    algorithm: str
+    graph: GraphData
+    startNodes: List[str]
+

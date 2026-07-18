@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException, Body
-from backend.schemas.schemas import GraphData, ProjectState, ValidationResult
+from backend.schemas.schemas import GraphData, ProjectState, ValidationResult, SimulationRequest
 from backend.services.templates import get_template_graph
 from backend.services.validation import validate_topology
+from backend.algorithms.bfs import run_bfs
+from backend.algorithms.dfs import run_dfs
 import os
 import json
 from typing import Dict, Any
@@ -103,6 +105,38 @@ async def validate_graph(graph: GraphData):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+@router.post("/simulate")
+async def simulate_attack(request: SimulationRequest):
+    """
+    Simulate a network virus attack propagation.
+    """
+    algorithm = request.algorithm
+    graph_dict = request.graph.model_dump()
+    start_nodes = request.startNodes
+
+    if not start_nodes:
+        raise HTTPException(status_code=400, detail="Attack simulation requires at least one starting node.")
+
+    if algorithm == "bfs":
+        # BFS Worm takes a single start node
+        result = run_bfs(graph_dict, start_nodes[0])
+    elif algorithm == "multi_bfs":
+        # Multi-Source BFS takes multiple start nodes
+        result = run_bfs(graph_dict, start_nodes)
+    elif algorithm == "dfs":
+        # DFS Scanner takes a single start node
+        result = run_dfs(graph_dict, start_nodes[0])
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported simulation algorithm '{algorithm}'.")
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "Simulation computation failed.")
+        )
+
+    return result
 
 @router.post("/save")
 async def save_project(payload: ProjectState):
