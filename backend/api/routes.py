@@ -1,9 +1,19 @@
 from fastapi import APIRouter, HTTPException, Body
-from backend.schemas.schemas import GraphData, ProjectState, ValidationResult, SimulationRequest
+from backend.schemas.schemas import GraphData, ProjectState, ValidationResult, SimulationRequest, RecoveryRequest
 from backend.services.templates import get_template_graph
 from backend.services.validation import validate_topology
 from backend.algorithms.bfs import run_bfs
 from backend.algorithms.dfs import run_dfs
+from backend.algorithms.dijkstra import run_dijkstra
+from backend.algorithms.prim import run_prim
+from backend.algorithms.kruskal import run_kruskal
+from backend.algorithms.floyd import run_floyd
+from backend.algorithms.connected_components import run_connected_components
+from backend.algorithms.union_find import run_union_find
+from backend.algorithms.topological_sort import run_topological_sort
+from backend.algorithms.fractional_knapsack import run_fractional_knapsack
+from backend.algorithms.branch_bound import run_branch_bound
+from backend.algorithms.tsp import run_tsp
 import os
 import json
 from typing import Dict, Any
@@ -134,6 +144,49 @@ async def simulate_attack(request: SimulationRequest):
         raise HTTPException(
             status_code=400,
             detail=result.get("result", {}).get("error", "Simulation computation failed.")
+        )
+
+    return result
+
+@router.post("/recover")
+async def recover_network(request: RecoveryRequest):
+    """
+    Simulate network recovery path planners.
+    """
+    algorithm = request.algorithm
+    graph_dict = request.graph.model_dump()
+    options = request.options or {}
+
+    if algorithm == "dijkstra":
+        start_node = options.get("source")
+        result = run_dijkstra(graph_dict, start_node, options)
+    elif algorithm == "prim":
+        start_node = options.get("source")
+        result = run_prim(graph_dict, start_node, options)
+    elif algorithm == "kruskal":
+        result = run_kruskal(graph_dict, options)
+    elif algorithm == "floyd":
+        result = run_floyd(graph_dict, options)
+    elif algorithm == "connected_components":
+        result = run_connected_components(graph_dict, options)
+    elif algorithm == "union_find":
+        result = run_union_find(graph_dict, options)
+    elif algorithm == "topological_sort":
+        result = run_topological_sort(graph_dict, options)
+    elif algorithm == "fractional_knapsack" or algorithm == "knapsack":
+        result = run_fractional_knapsack(graph_dict, options)
+    elif algorithm == "branch_bound":
+        result = run_branch_bound(graph_dict, options)
+    elif algorithm == "tsp":
+        start_node = options.get("source")
+        result = run_tsp(graph_dict, start_node, options)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported recovery algorithm '{algorithm}'.")
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "Recovery calculation failed.")
         )
 
     return result

@@ -61,6 +61,36 @@ export const algorithmService = {
     });
     return response.data;
   },
+  recoverNetwork: async (algoId, nodes, edges, options = {}) => {
+    const formattedNodes = nodes.map(node => ({
+      id: node.id,
+      label: node.data?.label || node.id,
+      type: node.type || 'PC',
+      status: node.data?.status || 'healthy',
+      position: {
+        x: node.position.x,
+        y: node.position.y
+      }
+    }));
+
+    const formattedEdges = edges.map(edge => ({
+      source: edge.source,
+      target: edge.target,
+      weight: parseFloat(edge.data?.weight ?? 1.0),
+      latency: parseFloat(edge.data?.latency ?? 10.0),
+      bandwidth: parseFloat(edge.data?.bandwidth ?? 100.0)
+    }));
+
+    const response = await client.post('/recover', {
+      algorithm: algoId,
+      graph: {
+        nodes: formattedNodes,
+        edges: formattedEdges
+      },
+      options
+    });
+    return response.data;
+  },
 };
 
 

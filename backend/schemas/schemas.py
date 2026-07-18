@@ -54,3 +54,9 @@ class SimulationRequest(BaseModel):
     graph: GraphData
     startNodes: List[str]
 
+class RecoveryRequest(BaseModel):
+    algorithm: str
+    graph: GraphData
+    options: Optional[Dict[str, Any]] = None
+
+
