@@ -1,0 +1,16 @@
+{
+  "name": "netshield",
+  "version": "1.0.0",
+  "description": "Network Attack Simulation & Response Planner",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix frontend && python -m venv venv && venv\\Scripts\\pip install -r requirements.txt",
+    "frontend": "npm run dev --prefix frontend",
+    "backend": "venv\\Scripts\\python -m uvicorn backend.main:app --reload --port 8000",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "test:backend": "venv\\Scripts\\pytest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

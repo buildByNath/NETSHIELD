@@ -1,0 +1,41 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_resources/
+
+# Python Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+pyenv/
+
+# Python cache and testing files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build outputs
+dist/
+build/
+*.log

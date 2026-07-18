@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbars for clean NOC panel appearance */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1720;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #233d4c;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #fd802e;
+}
+
+/* React Flow customizations for custom style alignment */
+.react-flow__renderer {
+  background: #0f1720 !important;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: #fd802e !important;
+  border: 1.5px solid #0f1720 !important;
+}
+
+.react-flow__edge-path {
+  stroke: #4b5563 !important;
+  stroke-width: 2.5 !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #fd802e !important;
+}
+
+.react-flow__controls {
+  background: #233d4c !important;
+  border: 1px solid rgba(253, 128, 46, 0.2) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+.react-flow__controls-button {
+  background: #233d4c !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid #1b2838 !important;
+  fill: #f8fafc !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #fd802e !important;
+}
+
+.react-flow__minimap {
+  background: #1b2838 !important;
+  border: 1px solid rgba(253, 128, 46, 0.2) !important;
+  border-radius: 4px !important;
+}
