@@ -21,6 +21,8 @@ from backend.algorithms.strassen import run_strassen
 from backend.algorithms.nqueen import run_nqueens
 import os
 import json
+import time
+import tracemalloc
 from typing import Dict, Any
 
 """
@@ -32,6 +34,28 @@ Purpose: API router defining endpoints for templates, graph validation, and proj
 router = APIRouter()
 
 STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage")
+
+def profile_call(func, *args, **kwargs):
+    tracemalloc.start()
+    start_time = time.perf_counter()
+    
+    result = func(*args, **kwargs)
+    
+    end_time = time.perf_counter()
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    duration_ms = (end_time - start_time) * 1000
+    peak_mem_kb = peak / 1024
+    
+    # Inject metrics into statistics
+    if isinstance(result, dict):
+        if "statistics" not in result:
+            result["statistics"] = {}
+        result["statistics"]["executionTimeMs"] = max(0.001, round(duration_ms, 3))
+        result["statistics"]["peakMemoryKb"] = max(0.01, round(peak_mem_kb, 2))
+        
+    return result
 
 @router.get("/templates")
 async def get_templates():
@@ -135,13 +159,13 @@ async def simulate_attack(request: SimulationRequest):
 
     if algorithm == "bfs":
         # BFS Worm takes a single start node
-        result = run_bfs(graph_dict, start_nodes[0])
+        result = profile_call(run_bfs, graph_dict, start_nodes[0])
     elif algorithm == "multi_bfs":
         # Multi-Source BFS takes multiple start nodes
-        result = run_bfs(graph_dict, start_nodes)
+        result = profile_call(run_bfs, graph_dict, start_nodes)
     elif algorithm == "dfs":
         # DFS Scanner takes a single start node
-        result = run_dfs(graph_dict, start_nodes[0])
+        result = profile_call(run_dfs, graph_dict, start_nodes[0])
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported simulation algorithm '{algorithm}'.")
 
@@ -164,27 +188,27 @@ async def recover_network(request: RecoveryRequest):
 
     if algorithm == "dijkstra":
         start_node = options.get("source")
-        result = run_dijkstra(graph_dict, start_node, options)
+        result = profile_call(run_dijkstra, graph_dict, start_node, options)
     elif algorithm == "prim":
         start_node = options.get("source")
-        result = run_prim(graph_dict, start_node, options)
+        result = profile_call(run_prim, graph_dict, start_node, options)
     elif algorithm == "kruskal":
-        result = run_kruskal(graph_dict, options)
+        result = profile_call(run_kruskal, graph_dict, options)
     elif algorithm == "floyd":
-        result = run_floyd(graph_dict, options)
+        result = profile_call(run_floyd, graph_dict, options)
     elif algorithm == "connected_components":
-        result = run_connected_components(graph_dict, options)
+        result = profile_call(run_connected_components, graph_dict, options)
     elif algorithm == "union_find":
-        result = run_union_find(graph_dict, options)
+        result = profile_call(run_union_find, graph_dict, options)
     elif algorithm == "topological_sort":
-        result = run_topological_sort(graph_dict, options)
+        result = profile_call(run_topological_sort, graph_dict, options)
     elif algorithm == "fractional_knapsack" or algorithm == "knapsack":
-        result = run_fractional_knapsack(graph_dict, options)
+        result = profile_call(run_fractional_knapsack, graph_dict, options)
     elif algorithm == "branch_bound":
-        result = run_branch_bound(graph_dict, options)
+        result = profile_call(run_branch_bound, graph_dict, options)
     elif algorithm == "tsp":
         start_node = options.get("source")
-        result = run_tsp(graph_dict, start_node, options)
+        result = profile_call(run_tsp, graph_dict, start_node, options)
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported recovery algorithm '{algorithm}'.")
 
@@ -204,9 +228,9 @@ async def simulate_sort(payload: Dict[str, Any] = Body(...)):
     algorithm = payload.get("algorithm", "merge_sort")
     options = payload.get("options", {})
     if algorithm == "merge_sort":
-        result = run_merge_sort(options)
+        result = profile_call(run_merge_sort, options)
     elif algorithm == "quick_sort" or algorithm == "randomized_quicksort":
-        result = run_randomized_quicksort(options)
+        result = profile_call(run_randomized_quicksort, options)
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported sorting algorithm '{algorithm}'.")
 
@@ -223,7 +247,7 @@ async def simulate_dp(payload: Dict[str, Any] = Body(...)):
     Simulate Matrix Chain Multiplication dynamic programming.
     """
     options = payload.get("options", {})
-    result = run_matrix_chain(options)
+    result = profile_call(run_matrix_chain, options)
     if not result.get("success", False):
         raise HTTPException(
             status_code=400,
@@ -237,7 +261,7 @@ async def simulate_strassen(payload: Dict[str, Any] = Body(...)):
     Simulate Strassen Matrix Multiplication.
     """
     options = payload.get("options", {})
-    result = run_strassen(options)
+    result = profile_call(run_strassen, options)
     if not result.get("success", False):
         raise HTTPException(
             status_code=400,
@@ -251,7 +275,7 @@ async def simulate_nqueens(payload: Dict[str, Any] = Body(...)):
     Simulate N-Queens backtracking chess placement.
     """
     options = payload.get("options", {})
-    result = run_nqueens(options)
+    result = profile_call(run_nqueens, options)
     if not result.get("success", False):
         raise HTTPException(
             status_code=400,
