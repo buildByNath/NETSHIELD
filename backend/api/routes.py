@@ -339,3 +339,31 @@ async def load_project():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load project: {str(e)}")
+
+@router.post("/report")
+async def export_report(payload: Dict[str, Any] = Body(...)):
+    """
+    Compile a structured lab submission report.
+    """
+    graph = payload.get("graph", {})
+    metadata = payload.get("metadata", {})
+    runs = payload.get("runs", [])
+    
+    nodes = graph.get("nodes", [])
+    edges = graph.get("edges", [])
+    
+    report_data = {
+        "projectName": metadata.get("projectName", "NETSHIELD Lab Report"),
+        "author": metadata.get("author", "DAA Student"),
+        "date": metadata.get("lastModified", "2026-07-18"),
+        "nodesCount": len(nodes),
+        "edgesCount": len(edges),
+        "runsCount": len(runs),
+        "runsSummary": runs
+    }
+    
+    return {
+        "success": True,
+        "report": report_data
+    }
+

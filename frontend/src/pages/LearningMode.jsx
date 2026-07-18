@@ -98,6 +98,14 @@ const ALGORITHMS = [
     ] }
 ];
 
+// Speed playback level selections
+const SPEED_LEVELS = [
+  { label: '0.5x', value: 0.5 },
+  { label: '1.0x', value: 1.0 },
+  { label: '1.5x', value: 1.5 },
+  { label: '2.0x', value: 2.0 }
+];
+
 export default function LearningMode() {
   const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'merge_sort'));
   
@@ -117,6 +125,16 @@ export default function LearningMode() {
   const [errorMsg, setErrorMsg] = useState('');
   
   const playbackInterval = useRef(null);
+
+  const handlePrevStep = () => {
+    setIsPlaying(false);
+    setCurrentFrame(prev => Math.max(0, prev - 1));
+  };
+
+  const handleNextStep = () => {
+    setIsPlaying(false);
+    setCurrentFrame(prev => Math.min(timeline.length - 1, prev + 1));
+  };
 
   // Trigger loading details of the chosen algorithm
   const fetchAlgorithmDetails = async () => {
