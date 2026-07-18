@@ -14,6 +14,11 @@ from backend.algorithms.topological_sort import run_topological_sort
 from backend.algorithms.fractional_knapsack import run_fractional_knapsack
 from backend.algorithms.branch_bound import run_branch_bound
 from backend.algorithms.tsp import run_tsp
+from backend.algorithms.merge_sort import run_merge_sort
+from backend.algorithms.randomized_quicksort import run_randomized_quicksort
+from backend.algorithms.matrix_chain import run_matrix_chain
+from backend.algorithms.strassen import run_strassen
+from backend.algorithms.nqueen import run_nqueens
 import os
 import json
 from typing import Dict, Any
@@ -189,6 +194,69 @@ async def recover_network(request: RecoveryRequest):
             detail=result.get("result", {}).get("error", "Recovery calculation failed.")
         )
 
+    return result
+
+@router.post("/simulate/sort")
+async def simulate_sort(payload: Dict[str, Any] = Body(...)):
+    """
+    Simulate sorting algorithms (Merge Sort or Randomized Quick Sort).
+    """
+    algorithm = payload.get("algorithm", "merge_sort")
+    options = payload.get("options", {})
+    if algorithm == "merge_sort":
+        result = run_merge_sort(options)
+    elif algorithm == "quick_sort" or algorithm == "randomized_quicksort":
+        result = run_randomized_quicksort(options)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported sorting algorithm '{algorithm}'.")
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "Sorting calculation failed.")
+        )
+    return result
+
+@router.post("/simulate/dp")
+async def simulate_dp(payload: Dict[str, Any] = Body(...)):
+    """
+    Simulate Matrix Chain Multiplication dynamic programming.
+    """
+    options = payload.get("options", {})
+    result = run_matrix_chain(options)
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "DP calculation failed.")
+        )
+    return result
+
+@router.post("/simulate/strassen")
+async def simulate_strassen(payload: Dict[str, Any] = Body(...)):
+    """
+    Simulate Strassen Matrix Multiplication.
+    """
+    options = payload.get("options", {})
+    result = run_strassen(options)
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "Strassen calculation failed.")
+        )
+    return result
+
+@router.post("/simulate/nqueens")
+async def simulate_nqueens(payload: Dict[str, Any] = Body(...)):
+    """
+    Simulate N-Queens backtracking chess placement.
+    """
+    options = payload.get("options", {})
+    result = run_nqueens(options)
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("result", {}).get("error", "N-Queens calculation failed.")
+        )
     return result
 
 @router.post("/save")

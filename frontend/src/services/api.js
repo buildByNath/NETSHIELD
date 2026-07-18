@@ -91,6 +91,31 @@ export const algorithmService = {
     });
     return response.data;
   },
+  simulateSort: async (algoId, array) => {
+    const response = await client.post('/simulate/sort', {
+      algorithm: algoId,
+      options: { array }
+    });
+    return response.data;
+  },
+  simulateDP: async (dimensions) => {
+    const response = await client.post('/simulate/dp', {
+      options: { dimensions }
+    });
+    return response.data;
+  },
+  simulateStrassen: async (A, B) => {
+    const response = await client.post('/simulate/strassen', {
+      options: { A, B }
+    });
+    return response.data;
+  },
+  simulateNQueens: async (N) => {
+    const response = await client.post('/simulate/nqueens', {
+      options: { N }
+    });
+    return response.data;
+  },
 };
 
 
