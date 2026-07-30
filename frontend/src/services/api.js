@@ -160,37 +160,6 @@ export const projectService = {
   },
 };
 
-export const reportService = {
-  exportReport: async (graph, metadata, runs) => {
-    const formattedNodes = graph.nodes.map(node => ({
-      id: node.id,
-      label: node.data?.label || node.id,
-      type: node.type || 'PC',
-      status: node.data?.status || 'healthy',
-      position: {
-        x: node.position.x,
-        y: node.position.y
-      }
-    }));
 
-    const formattedEdges = graph.edges.map(edge => ({
-      source: edge.source,
-      target: edge.target,
-      weight: parseFloat(edge.data?.weight ?? 1.0),
-      latency: parseFloat(edge.data?.latency ?? 10.0),
-      bandwidth: parseFloat(edge.data?.bandwidth ?? 100.0)
-    }));
-
-    const response = await client.post('/report', {
-      graph: {
-        nodes: formattedNodes,
-        edges: formattedEdges
-      },
-      metadata,
-      runs
-    });
-    return response.data;
-  }
-};
 
 export default client;

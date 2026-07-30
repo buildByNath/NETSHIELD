@@ -1,0 +1,267 @@
+{
+  "project": {},
+  "network": {
+    "nodes": [
+      {
+        "id": "NET-1",
+        "label": "Internet",
+        "type": "Internet",
+        "status": "healthy",
+        "position": {
+          "x": 825.0,
+          "y": 50.0
+        }
+      },
+      {
+        "id": "FW-1",
+        "label": "Hospital Firewall",
+        "type": "Firewall",
+        "status": "healthy",
+        "position": {
+          "x": 825.0,
+          "y": 130.0
+        }
+      },
+      {
+        "id": "R-1",
+        "label": "Central Router",
+        "type": "Router",
+        "status": "healthy",
+        "position": {
+          "x": 825.0,
+          "y": 210.0
+        }
+      },
+      {
+        "id": "SW-CLINIC",
+        "label": "Clinical Devices Switch",
+        "type": "Access Switch",
+        "status": "healthy",
+        "position": {
+          "x": 305.0,
+          "y": 300.0
+        }
+      },
+      {
+        "id": "SW-ADMIN",
+        "label": "Hospital Admin Switch",
+        "type": "Access Switch",
+        "status": "healthy",
+        "position": {
+          "x": 920.0,
+          "y": 300.0
+        }
+      },
+      {
+        "id": "SW-PATIENT",
+        "label": "Patient Guest Switch",
+        "type": "Access Switch",
+        "status": "healthy",
+        "position": {
+          "x": 1345.0,
+          "y": 300.0
+        }
+      },
+      {
+        "id": "ICU-MON-1",
+        "label": "ICU Monitor 1",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 50.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "ICU-MON-2",
+        "label": "ICU Monitor 2",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 220.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "PHARM-PC",
+        "label": "Pharmacy Station",
+        "type": "Laptop",
+        "status": "healthy",
+        "position": {
+          "x": 390.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "SRV-EMR",
+        "label": "Health Records Server",
+        "type": "Database Server",
+        "status": "healthy",
+        "position": {
+          "x": 601.579028081153,
+          "y": 458.2000959166992
+        }
+      },
+      {
+        "id": "ADM-PC-1",
+        "label": "Billing PC 1",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 750.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "ADM-PC-2",
+        "label": "Reception PC 2",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 920.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "ADM-PRN",
+        "label": "Reception Printer",
+        "type": "Printer",
+        "status": "healthy",
+        "position": {
+          "x": 1090.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "PAT-AP-1",
+        "label": "Ward Wifi AP 1",
+        "type": "Wireless Access Point",
+        "status": "healthy",
+        "position": {
+          "x": 1260.0,
+          "y": 420.0
+        }
+      },
+      {
+        "id": "PAT-AP-2",
+        "label": "Lobby Wifi AP 2",
+        "type": "Wireless Access Point",
+        "status": "healthy",
+        "position": {
+          "x": 1430.0,
+          "y": 420.0
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "NET-1",
+        "target": "FW-1",
+        "weight": 1.0,
+        "latency": 1.0,
+        "bandwidth": 500.0
+      },
+      {
+        "source": "FW-1",
+        "target": "R-1",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 500.0
+      },
+      {
+        "source": "R-1",
+        "target": "SW-CLINIC",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "R-1",
+        "target": "SW-ADMIN",
+        "weight": 2.0,
+        "latency": 5.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "R-1",
+        "target": "SW-PATIENT",
+        "weight": 5.0,
+        "latency": 15.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CLINIC",
+        "target": "ICU-MON-1",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CLINIC",
+        "target": "ICU-MON-2",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CLINIC",
+        "target": "PHARM-PC",
+        "weight": 1.0,
+        "latency": 4.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CLINIC",
+        "target": "SRV-EMR",
+        "weight": 1.0,
+        "latency": 1.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "ADM-PC-1",
+        "weight": 1.0,
+        "latency": 8.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "ADM-PC-2",
+        "weight": 1.0,
+        "latency": 8.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "ADM-PRN",
+        "weight": 1.0,
+        "latency": 10.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-PATIENT",
+        "target": "PAT-AP-1",
+        "weight": 1.0,
+        "latency": 20.0,
+        "bandwidth": 50.0
+      },
+      {
+        "source": "SW-PATIENT",
+        "target": "PAT-AP-2",
+        "weight": 1.0,
+        "latency": 22.0,
+        "bandwidth": 50.0
+      }
+    ]
+  },
+  "simulation": {},
+  "recovery": {},
+  "settings": {},
+  "metadata": {
+    "projectName": "My Network Builder Graph",
+    "author": "KTU DAA Student",
+    "createdDate": "2026-07-30T16:16:22.577Z",
+    "lastModified": "2026-07-30T16:16:22.577Z",
+    "version": "1.0"
+  }
+}

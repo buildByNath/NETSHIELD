@@ -1,23 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ReactFlow, {
   ReactFlowProvider,
-  MiniMap,
   Controls,
-  Background,
-  useNodesState,
-  useEdgesState,
-  useReactFlow
+  Background
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 import { 
   Play, Pause, RotateCcw, ChevronRight, ChevronLeft, ShieldCheck, 
-  Settings, Layers, Clock, ShieldAlert, Cpu, Heart, CheckSquare
+  Settings, Layers, Cpu, Heart, CheckSquare, ShieldAlert
 } from 'lucide-react';
 
 import CustomNode from '../components/network/CustomNode';
 import CustomEdge from '../components/network/CustomEdge';
-import { projectService, algorithmService } from '../services/api';
+import { useSimulation } from '../context/SimulationContext';
 
 /**
  * File: RecoveryPlanner.jsx
@@ -54,338 +50,102 @@ const SPEED_LEVELS = [
 ];
 
 function RecoveryWorkspace() {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const {
+    nodes,
+    edges,
+    originalNodes,
+    mode,
+    budget,
+    setBudget,
+    recoverySource,
+    setRecoverySource,
+    recoveryTarget,
+    setRecoveryTarget,
+    timeline,
+    currentFrame,
+    setCurrentFrame,
+    isPlaying,
+    speed,
+    setSpeed,
+    simulationStatus,
+    statistics,
+    learning,
+    finalResult,
+    errorMsg,
+    triggerRecovery,
+    pausePlayback,
+    resumePlayback,
+    resetPlayback,
+    nextStep,
+    prevStep,
+    infectedNodes
+  } = useSimulation();
+
+  const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
-  // Recovery Parameters
-  const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
-  const [sourceNode, setSourceNode] = useState('');
-  const [destNode, setDestNode] = useState('');
-  const [budget, setBudget] = useState(100);
-  
-  // Simulation results
-  const [timeline, setTimeline] = useState([]);
-  const [statistics, setStatistics] = useState({});
-  const [learning, setLearning] = useState({});
-  const [finalResult, setFinalResult] = useState({});
-  
-  // Playback Control States
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(0);
-  const [speed, setSpeed] = useState(1.0);
-  const [plannerStatus, setPlannerStatus] = useState('idle'); // 'idle' | 'loading' | 'running' | 'paused' | 'completed'
-  const [errorMsg, setErrorMsg] = useState('');
-  
-  // Original graph store
-  const originalGraph = useRef({ nodes: [], edges: [] });
-  const playbackInterval = useRef(null);
-
-  // Load the network graph
+  // Auto-fill defaults when infectedNodes change
   useEffect(() => {
-    const loadGraph = async () => {
-      setPlannerStatus('loading');
-      try {
-        let loadedNodes = [];
-        let loadedEdges = [];
-        
-        // Local storage autosave draft
-        const draftStr = localStorage.getItem('netshield_autosave');
-        if (draftStr) {
-          const draft = JSON.parse(draftStr);
-          loadedNodes = draft.nodes || [];
-          loadedEdges = draft.edges || [];
-        } else {
-          // Backend project load
-          const response = await projectService.loadProject();
-          if (response.success && response.project && response.project.network) {
-            const net = response.project.network;
-            loadedNodes = (net.nodes || []).map(n => ({
-              id: n.id,
-              type: n.type,
-              position: n.position,
-              data: { label: n.label, status: n.status || 'healthy' }
-            }));
-            
-            loadedEdges = (net.edges || []).map(e => ({
-              id: `e-${e.source}-${e.target}`,
-              source: e.source,
-              target: e.target,
-              type: 'customEdge',
-              data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
-            }));
-          }
-        }
-
-        // Set initial nodes as compromised/infected so we can recover them to blue!
-        // This is a great visual effect: recovering an infected network!
-        const infectedNodes = loadedNodes.map(n => ({
-          ...n,
-          data: { ...n.data, status: 'infected' } // start all infected so recovery works visually
-        }));
-        
-        const formattedEdges = loadedEdges.map(e => ({
-          ...e,
-          type: 'customEdge',
-          data: { ...e.data, isSimulation: false, isRecovery: false }
-        }));
-
-        setNodes(infectedNodes);
-        setEdges(formattedEdges);
-        originalGraph.current = { nodes: infectedNodes, edges: formattedEdges };
-        setPlannerStatus('idle');
-      } catch (err) {
-        console.error('Failed to load recovery graph', err);
-        setErrorMsg('Failed to initialize active graph topology.');
-        setPlannerStatus('idle');
+    if (infectedNodes.length > 0) {
+      // Set target to first infected server, or first infected PC
+      const server = infectedNodes.find(id => id.startsWith('SRV-'));
+      if (server) {
+        setRecoveryTarget(server);
+      } else {
+        setRecoveryTarget(infectedNodes[0]);
       }
-    };
-    
-    loadGraph();
-  }, [setNodes, setEdges]);
+    }
+  }, [infectedNodes, setRecoveryTarget]);
 
-  // Click node handler to configure source/destination options
+  // Click handler to select target nodes (educational option override)
   const onNodeClick = useCallback((event, node) => {
-    if (plannerStatus === 'running' || plannerStatus === 'paused' || plannerStatus === 'completed') return;
-    setErrorMsg('');
-
-    const requiresSource = ['dijkstra', 'prim', 'tsp'].includes(selectedAlgo);
-    const requiresDest = ['dijkstra'].includes(selectedAlgo);
-
-    if (requiresDest) {
-      if (!sourceNode) {
-        setSourceNode(node.id);
-      } else if (sourceNode === node.id) {
-        setSourceNode('');
-      } else if (!destNode) {
-        setDestNode(node.id);
-      } else if (destNode === node.id) {
-        setDestNode('');
-      } else {
-        // Reset both and set source
-        setSourceNode(node.id);
-        setDestNode('');
-      }
-    } else if (requiresSource) {
-      if (sourceNode === node.id) {
-        setSourceNode('');
-      } else {
-        setSourceNode(node.id);
-      }
+    if (mode === 'recovery' && (simulationStatus === 'running' || simulationStatus === 'paused' || simulationStatus === 'completed')) return;
+    
+    // If the node is infected, allow setting it as target. Otherwise, set as source.
+    if (infectedNodes.includes(node.id)) {
+      setRecoveryTarget(node.id);
+    } else {
+      setRecoverySource(node.id);
     }
-  }, [selectedAlgo, sourceNode, destNode, plannerStatus]);
+  }, [mode, simulationStatus, infectedNodes, setRecoverySource, setRecoveryTarget]);
 
-  // Visual selection borders for source/destination nodes
-  useEffect(() => {
-    setNodes(nds => nds.map(n => {
-      const isSrc = n.id === sourceNode;
-      const isDst = n.id === destNode;
-      
-      let status = 'infected'; // keep base as infected
-      if (isSrc || isDst) {
-        status = 'protected'; // gold highlight
-      }
-
-      return {
-        ...n,
-        data: {
-          ...n.data,
-          status
-        }
-      };
-    }));
-  }, [sourceNode, destNode, setNodes]);
-
-  // Clear intervals on unmount
-  useEffect(() => {
-    return () => {
-      if (playbackInterval.current) clearInterval(playbackInterval.current);
-    };
-  }, []);
-
-  // Request recovery timeline computation
-  const handleStartRecovery = async () => {
-    const requiresSource = ['dijkstra', 'prim', 'tsp'].includes(selectedAlgo);
-    const requiresDest = ['dijkstra'].includes(selectedAlgo);
-
-    if (requiresSource && !sourceNode) {
-      setErrorMsg('Choose a starting recovery node on the canvas.');
-      return;
-    }
-    if (requiresDest && !destNode) {
-      setErrorMsg('Choose a destination target node on the canvas.');
-      return;
-    }
-
-    setPlannerStatus('loading');
-    setErrorMsg('');
-    try {
+  const handlePlayPause = () => {
+    if (simulationStatus === 'idle') {
       const options = {
-        source: sourceNode,
-        destination: destNode,
+        source: recoverySource,
+        destination: recoveryTarget,
         budget: parseFloat(budget)
       };
-
-      const response = await algorithmService.recoverNetwork(
-        selectedAlgo,
-        originalGraph.current.nodes,
-        originalGraph.current.edges,
-        options
-      );
-
-      if (response.success && response.timeline) {
-        setTimeline(response.timeline);
-        setStatistics(response.statistics || {});
-        setLearning(response.learning || {});
-        setFinalResult(response.result || {});
-        setCurrentFrame(0);
-        setPlannerStatus('running');
-        setIsPlaying(true);
-      } else {
-        setErrorMsg('Recovery computation failed.');
-        setPlannerStatus('idle');
-      }
-    } catch (err) {
-      setErrorMsg(err.response?.data?.detail || 'Recovery planner request failed.');
-      setPlannerStatus('idle');
-    }
-  };
-
-  // Playback loop
-  useEffect(() => {
-    if (playbackInterval.current) clearInterval(playbackInterval.current);
-
-    if (isPlaying && plannerStatus === 'running' && timeline.length > 0) {
-      const stepDuration = 500 / speed;
-      
-      playbackInterval.current = setInterval(() => {
-        setCurrentFrame(prev => {
-          if (prev >= timeline.length - 1) {
-            clearInterval(playbackInterval.current);
-            setIsPlaying(false);
-            setPlannerStatus('completed');
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, stepDuration);
-    }
-
-    return () => {
-      if (playbackInterval.current) clearInterval(playbackInterval.current);
-    };
-  }, [isPlaying, plannerStatus, timeline, speed]);
-
-  // Animate nodes and edges based on the current frame
-  const applyFrameState = useCallback((frameIndex) => {
-    if (timeline.length === 0 || frameIndex >= timeline.length) return;
-    const frame = timeline[frameIndex];
-    const visitedSet = new Set(frame.visited || []);
-    const activeNode = frame.currentNode;
-    const activeEdge = frame.currentEdge;
-
-    // 1. Recover nodes: visited nodes become blue ('recovered'), active node glows, source/destination keep highlight
-    setNodes(nds => nds.map(n => {
-      let status = 'infected';
-      if (visitedSet.has(n.id)) status = 'recovered';
-      if (activeNode === n.id) status = 'recovered';
-      
-      // Override for selected options
-      const isSrc = n.id === sourceNode;
-      const isDst = n.id === destNode;
-      if ((isSrc || isDst) && status !== 'recovered') {
-        status = 'protected';
-      }
-
-      return {
-        ...n,
-        selected: activeNode === n.id,
-        data: {
-          ...n.data,
-          status
-        }
-      };
-    }));
-
-    // 2. Recover edges: highlight active edge with isRecovery=true (pulses blue)
-    setEdges(eds => eds.map(e => {
-      const isActive = activeEdge && (
-        (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
-        (e.source === activeEdge[1] && e.target === activeEdge[0])
-      );
-      
-      return {
-        ...e,
-        selected: !!isActive,
-        data: {
-          ...e.data,
-          isSimulation: false,
-          isRecovery: !!isActive
-        }
-      };
-    }));
-  }, [timeline, sourceNode, destNode, setNodes, setEdges]);
-
-  // Apply frame changes
-  useEffect(() => {
-    if (timeline.length > 0) {
-      applyFrameState(currentFrame);
-    }
-  }, [currentFrame, timeline, applyFrameState]);
-
-  // Playback Control Button Functions
-  const handlePlayPause = () => {
-    if (plannerStatus === 'idle') {
-      handleStartRecovery();
-    } else if (plannerStatus === 'completed') {
-      setCurrentFrame(0);
-      setPlannerStatus('running');
-      setIsPlaying(true);
+      triggerRecovery(selectedAlgo, options);
+    } else if (simulationStatus === 'paused') {
+      resumePlayback();
     } else {
-      setIsPlaying(!isPlaying);
-      setPlannerStatus(isPlaying ? 'paused' : 'running');
+      pausePlayback();
     }
   };
 
   const handleReset = () => {
-    if (playbackInterval.current) clearInterval(playbackInterval.current);
-    setIsPlaying(false);
-    setCurrentFrame(0);
-    setTimeline([]);
-    setSourceNode('');
-    setDestNode('');
-    setStatistics({});
-    setLearning({});
-    setFinalResult({});
-    setErrorMsg('');
-    setPlannerStatus('idle');
-    
-    // Reset canvas to original state (infected red colors)
-    setNodes(originalGraph.current.nodes);
-    setEdges(originalGraph.current.edges);
+    resetPlayback();
     if (reactFlowInstance) reactFlowInstance.fitView({ duration: 500 });
   };
 
-  const handleNextStep = () => {
-    if (timeline.length === 0) return;
-    setIsPlaying(false);
-    setPlannerStatus('paused');
-    setCurrentFrame(prev => Math.min(prev + 1, timeline.length - 1));
+  const activeFrameData = (mode === 'recovery' && timeline[currentFrame]) || { 
+    visited: [], 
+    queue: [], 
+    stack: [], 
+    action: 'Recovery planner idle. Click Run to start clean-up.' 
   };
 
-  const handlePrevStep = () => {
-    if (timeline.length === 0) return;
-    setIsPlaying(false);
-    setPlannerStatus('paused');
-    setCurrentFrame(prev => Math.max(prev - 1, 0));
+  // Helper to safely round numbers in template
+  const roundNumber = (num, places = 1) => {
+    if (num === null || num === undefined) return 0;
+    return parseFloat(num).toFixed(places);
   };
-
-  const activeFrameData = timeline[currentFrame] || { visited: [], queue: [], stack: [], action: 'Planner idle. Click play to begin recovery.' };
 
   return (
     <div className="flex-1 flex overflow-hidden h-full bg-[#0F1720]">
       {/* Sidebar: Controls, parameters, and variable logging */}
-      <div className="w-80 bg-[#233D4C] border-r border-[#4B5563]/30 h-full flex flex-col select-none flex-shrink-0 text-xs font-sans">
+      <div className="w-80 bg-[#233D4C] border-r border-[#4B5563]/30 h-full flex flex-col select-none flex-shrink-0 text-xs font-sans overflow-y-auto">
         
         <div className="p-4 border-b border-[#4B5563]/25 bg-[#1B2838]/40 space-y-4">
           <h2 className="text-sm font-bold text-[#FD802E] tracking-wider uppercase flex items-center gap-1.5">
@@ -402,7 +162,7 @@ function RecoveryWorkspace() {
                 setSelectedAlgo(e.target.value);
                 handleReset();
               }}
-              disabled={plannerStatus !== 'idle'}
+              disabled={mode === 'recovery' && simulationStatus !== 'idle'}
               className="w-full bg-[#0F1720] border border-[#4B5563]/30 hover:border-[#FD802E]/30 text-[#F8FAFC] px-2 py-2 rounded-lg outline-none cursor-pointer transition-colors"
             >
               <option value="dijkstra">Dijkstra Shortest Path</option>
@@ -418,6 +178,32 @@ function RecoveryWorkspace() {
             </select>
           </div>
 
+          {/* Auto-detected infected nodes count badge panel */}
+          <div className="bg-[#0F1720]/60 border border-[#4B5563]/20 rounded-lg p-3 space-y-1.5">
+            <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
+              <span>Infected Nodes Detected</span>
+              <span className={`px-2 py-0.5 rounded-full ${infectedNodes.length > 0 ? 'bg-[#EF4444]/20 text-[#EF4444]' : 'bg-[#22C55E]/20 text-[#22C55E]'}`}>
+                {infectedNodes.length} devices
+              </span>
+            </div>
+            {infectedNodes.length > 0 ? (
+              <div className="max-h-16 overflow-y-auto flex flex-wrap gap-1 pt-1">
+                {infectedNodes.slice(0, 8).map(id => (
+                  <span key={id} className="bg-[#EF4444]/10 border border-[#EF4444]/25 text-[#EF4444] px-1 rounded text-[8px] font-mono">
+                    {id}
+                  </span>
+                ))}
+                {infectedNodes.length > 8 && (
+                  <span className="text-[8px] text-[#94A3B8] italic pt-0.5">+{infectedNodes.length - 8} more</span>
+                )}
+              </div>
+            ) : (
+              <p className="text-[9px] text-[#94A3B8] leading-normal pt-1">
+                No active compromise detected. System will simulate recovery on a default infected topology fallback.
+              </p>
+            )}
+          </div>
+
           {/* Budget input field for Knapsack / Branch & Bound */}
           {['fractional_knapsack', 'branch_bound'].includes(selectedAlgo) && (
             <div className="space-y-1 animate-in fade-in duration-150">
@@ -426,33 +212,48 @@ function RecoveryWorkspace() {
                 type="number"
                 value={budget}
                 onChange={(e) => setBudget(parseFloat(e.target.value) || 10)}
-                disabled={plannerStatus !== 'idle'}
-                className="w-full bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-3 py-2 rounded-lg outline-none font-mono"
+                disabled={mode === 'recovery' && simulationStatus !== 'idle'}
+                className="w-full bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-3 py-2 rounded-lg outline-none font-mono text-xs"
               />
             </div>
           )}
 
-          {/* Source and destination instructions */}
+          {/* Source and destination options selector */}
           {!['fractional_knapsack', 'branch_bound', 'connected_components', 'union_find', 'topological_sort', 'floyd', 'kruskal'].includes(selectedAlgo) && (
-            <div className="bg-[#0F1720]/50 border border-[#4B5563]/20 rounded-lg p-3 space-y-1 text-[11px] text-[#CBD5E1]">
-              <strong className="text-[#3B82F6]">Node Selection:</strong>
-              <p className="text-[10px] text-[#94A3B8] leading-normal">
-                {selectedAlgo === 'dijkstra' 
-                  ? 'Click two nodes on the canvas to set recovery Source and Destination.'
-                  : 'Click any node on the canvas to set the starting recovery point.'}
-              </p>
-              <div className="space-y-1.5 mt-2 font-mono text-[9px]">
-                <div className="flex justify-between">
-                  <span className="text-[#94A3B8]">Source:</span>
-                  <span className={sourceNode ? 'text-[#3B82F6] font-bold' : 'text-[#EF4444]'}>{sourceNode || 'Not Selected'}</span>
-                </div>
-                {selectedAlgo === 'dijkstra' && (
-                  <div className="flex justify-between">
-                    <span className="text-[#94A3B8]">Destination:</span>
-                    <span className={destNode ? 'text-[#3B82F6] font-bold' : 'text-[#EF4444]'}>{destNode || 'Not Selected'}</span>
-                  </div>
-                )}
+            <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-3 space-y-3">
+              <div className="space-y-1">
+                <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Recovery Source (Clean Center)</label>
+                <select
+                  value={recoverySource}
+                  onChange={(e) => setRecoverySource(e.target.value)}
+                  disabled={mode === 'recovery' && simulationStatus !== 'idle'}
+                  className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
+                >
+                  {originalNodes.filter(n => !infectedNodes.includes(n.id)).map(n => (
+                    <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                  ))}
+                  {/* Fallback to any node if everything is theoretically infected */}
+                  {originalNodes.filter(n => !infectedNodes.includes(n.id)).length === 0 && originalNodes.map(n => (
+                    <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                  ))}
+                </select>
               </div>
+
+              {selectedAlgo === 'dijkstra' && (
+                <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
+                  <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Target Device to Recover</label>
+                  <select
+                    value={recoveryTarget}
+                    onChange={(e) => setRecoveryTarget(e.target.value)}
+                    disabled={mode === 'recovery' && simulationStatus !== 'idle'}
+                    className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
+                  >
+                    {originalNodes.filter(n => infectedNodes.includes(n.id) || n.id !== recoverySource).map(n => (
+                      <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -463,9 +264,9 @@ function RecoveryWorkspace() {
           )}
 
           {/* Action button */}
-          {plannerStatus === 'idle' && (
+          {simulationStatus === 'idle' && (
             <button
-              onClick={handleStartRecovery}
+              onClick={handlePlayPause}
               className="w-full py-2.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] font-bold rounded-lg shadow-lg flex items-center justify-center gap-1.5 transition-colors uppercase"
             >
               <Play className="h-4 w-4" />
@@ -475,8 +276,8 @@ function RecoveryWorkspace() {
         </div>
 
         {/* Dynamic variable tracking structure dashboard */}
-        {plannerStatus !== 'idle' && (
-          <div className="flex-1 flex flex-col overflow-hidden p-4 space-y-4">
+        {mode === 'recovery' && simulationStatus !== 'idle' && (
+          <div className="p-4 space-y-4 flex flex-col flex-1 overflow-hidden">
             
             <div className="space-y-1">
               <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Active Action</label>
@@ -485,10 +286,10 @@ function RecoveryWorkspace() {
               </div>
             </div>
 
-            {/* Display list based on selected algorithm */}
+            {/* Display lists based on selected algorithm */}
             <div className="flex-1 flex flex-col overflow-hidden space-y-1.5">
               <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Algorithm Variables</label>
-              <div className="flex-1 bg-[#0F1720]/40 border border-[#4B5563]/25 rounded-lg p-3 overflow-y-auto space-y-2 font-mono text-[10px]">
+              <div className="flex-1 bg-[#0F1720]/40 border border-[#4B5563]/25 rounded-lg p-3 overflow-y-auto space-y-3 font-mono text-[10px]">
                 
                 {/* Dijkstra / Prim priority queues */}
                 {['dijkstra', 'prim'].includes(selectedAlgo) && activeFrameData.queue && (
@@ -566,7 +367,7 @@ function RecoveryWorkspace() {
                   </div>
                 )}
 
-                {/* Connected Components color code indexes */}
+                {/* Connected Components groups */}
                 {selectedAlgo === 'connected_components' && activeFrameData.components && (
                   <div className="space-y-1">
                     <span className="text-[#3B82F6] font-bold block">Discovered Component Groups:</span>
@@ -581,7 +382,7 @@ function RecoveryWorkspace() {
                           </div>
                         ))}
                       </div>
-                    ) : <span className="text-[#94A3B8] italic">No component nodes categorized yet</span>}
+                    ) : <span className="text-[#94A3B8] italic">No components grouped yet</span>}
                   </div>
                 )}
 
@@ -669,11 +470,11 @@ function RecoveryWorkspace() {
             <div className="border-t border-[#4B5563]/20 pt-4 grid grid-cols-2 gap-3 text-center text-[10px] font-mono">
               <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
                 <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Recovered</span>
-                <span className="text-[#3B82F6] font-black text-sm">{activeFrameData.visited.length} / {nodes.length}</span>
+                <span className="text-[#3B82F6] font-black text-xs">{(activeFrameData.visited || []).length} / {nodes.length}</span>
               </div>
               <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
                 <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Step Index</span>
-                <span className="text-[#F8FAFC] font-black text-sm">{currentFrame + 1} / {timeline.length}</span>
+                <span className="text-[#F8FAFC] font-black text-xs">{currentFrame + 1} / {timeline.length}</span>
               </div>
             </div>
 
@@ -685,11 +486,11 @@ function RecoveryWorkspace() {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         
         {/* Playback timeline slider overlay */}
-        {timeline.length > 0 && (
+        {mode === 'recovery' && timeline.length > 0 && (
           <div className="h-12 bg-[#233D4C]/60 backdrop-blur-md border-b border-[#4B5563]/20 flex items-center justify-between px-6 z-10 select-none">
             <div className="flex items-center gap-1">
               <button
-                onClick={handlePrevStep}
+                onClick={prevStep}
                 disabled={currentFrame === 0}
                 className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#FD802E] disabled:opacity-30 transition-colors"
                 title="Previous step"
@@ -706,7 +507,7 @@ function RecoveryWorkspace() {
               </button>
 
               <button
-                onClick={handleNextStep}
+                onClick={nextStep}
                 disabled={currentFrame === timeline.length - 1}
                 className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#FD802E] disabled:opacity-30 transition-colors"
                 title="Next step"
@@ -731,9 +532,8 @@ function RecoveryWorkspace() {
                 max={timeline.length - 1}
                 value={currentFrame}
                 onChange={(e) => {
-                  setIsPlaying(false);
-                  setPlannerStatus('paused');
                   setCurrentFrame(parseInt(e.target.value) || 0);
+                  pausePlayback();
                 }}
                 className="flex-1 accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer appearance-none"
               />
@@ -756,7 +556,7 @@ function RecoveryWorkspace() {
         )}
 
         {/* React Flow canvas */}
-        <div className="flex-1 h-full relative" style={{ pointerEvents: plannerStatus === 'loading' ? 'none' : 'auto' }}>
+        <div className="flex-1 h-full relative" style={{ pointerEvents: simulationStatus === 'loading' ? 'none' : 'auto' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -773,12 +573,11 @@ function RecoveryWorkspace() {
           >
             <Background color="#4B5563" gap={16} size={1} />
             <Controls />
-            <MiniMap nodeColor={() => '#233D4C'} />
           </ReactFlow>
         </div>
 
         {/* Pseudocode and learning bottom sheet details */}
-        {timeline.length > 0 && learning.pseudoCode && (
+        {mode === 'recovery' && timeline.length > 0 && learning.pseudoCode && (
           <div className="h-44 bg-[#233D4C] border-t border-[#4B5563]/30 p-4 flex gap-4 select-none z-10 flex-shrink-0 overflow-y-auto">
             {/* Pseudocode panel */}
             <div className="w-1/2 flex flex-col h-full overflow-hidden border border-[#4B5563]/20 rounded-lg bg-[#0F1720]/40">
@@ -787,7 +586,6 @@ function RecoveryWorkspace() {
               </div>
               <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
                 {learning.pseudoCode.map((line, idx) => {
-                  // highlight matches based on action string triggers
                   const isExtract = activeFrameData.action.includes('Inspecting device') && line.includes('ExtractMin');
                   const isRelax = activeFrameData.action.includes('Relaxed path cost') && line.includes('dist[u]');
                   const isUnion = activeFrameData.action.includes('Union') && line.includes('Union(');
@@ -798,7 +596,7 @@ function RecoveryWorkspace() {
                     <div 
                       key={`code-${idx}`} 
                       className={`px-1.5 py-0.5 rounded transition-colors ${
-                        isHighlighted ? 'bg-[#FD802E]/20 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' : ''
+                        isHighlighted ? 'bg-[#3B82F6]/20 text-[#3B82F6] font-bold border-l-2 border-[#3B82F6]' : ''
                       }`}
                     >
                       {line}
@@ -818,11 +616,11 @@ function RecoveryWorkspace() {
                 <div className="grid grid-cols-2 gap-2 text-[10px] font-mono pt-1">
                   <div className="flex justify-between border-b border-[#4B5563]/10 pb-1">
                     <span className="text-[#94A3B8]">Time Complexity:</span>
-                    <span className="text-[#22C55E] font-bold">{statistics.timeComplexity}</span>
+                    <span className="text-[#3B82F6] font-bold">{statistics.timeComplexity}</span>
                   </div>
                   <div className="flex justify-between border-b border-[#4B5563]/10 pb-1">
                     <span className="text-[#94A3B8]">Space Complexity:</span>
-                    <span className="text-[#22C55E] font-bold">{statistics.spaceComplexity}</span>
+                    <span className="text-[#3B82F6] font-bold">{statistics.spaceComplexity}</span>
                   </div>
                 </div>
               </div>
@@ -833,12 +631,6 @@ function RecoveryWorkspace() {
       </div>
     </div>
   );
-}
-
-// Utility to round numbers safely
-function roundNumber(num, decs) {
-  if (num === null || num === undefined) return 0;
-  return Number(Math.round(num + 'e' + decs) + 'e-' + decs);
 }
 
 export default function RecoveryPlanner() {

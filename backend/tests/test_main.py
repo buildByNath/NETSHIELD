@@ -17,16 +17,6 @@ def test_health_check():
     assert response.status_code == 200
     assert response.json() == {"status": "online"}
 
-def test_report_compilation():
-    """Test report compilation endpoint."""
-    payload = {
-        "graph": {"nodes": [], "edges": []},
-        "metadata": {"projectName": "Lab Test", "author": "Student-1"},
-        "runs": []
-    }
-    response = client.post("/report", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["report"]["projectName"] == "Lab Test"
+
+
 

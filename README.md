@@ -43,8 +43,16 @@ NETSHIELD is a complete, production-quality educational web application designed
 - Node.js v18+
 - Python 3.11+
 
-### Concurrent Startup
-To launch the FastAPI backend and Vite frontend concurrently:
+### Docker Startup (Containerized)
+If you have Docker and Docker Compose installed, you can spin up the entire stack with a single command:
+```bash
+docker compose up --build
+```
+- **Frontend Console**: [http://localhost:5173/](http://localhost:5173/)
+- **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Local Concurrent Startup
+To launch the FastAPI backend and Vite frontend concurrently on your local machine:
 ```bash
 npm install
 npm run dev

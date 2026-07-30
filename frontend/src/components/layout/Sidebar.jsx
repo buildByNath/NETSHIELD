@@ -19,7 +19,6 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
     { id: 'learning', label: 'Learning Mode', icon: <BookOpen className="h-5 w-5" /> },
     { id: 'comparison', label: 'Comparison', icon: <BarChart3 className="h-5 w-5" /> },
     { id: 'performance', label: 'Performance', icon: <Activity className="h-5 w-5" /> },
-    { id: 'reports', label: 'Reports', icon: <FileText className="h-5 w-5" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> }
   ];
 
@@ -27,7 +26,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
     <motion.div
       animate={{ width: collapsed ? 64 : 240 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="bg-[#233D4C] border-r border-[#4B5563]/30 h-[calc(100vh-4rem-2rem)] flex flex-col relative select-none flex-shrink-0"
+      className="bg-[#233D4C] border-r border-[#4B5563]/30 h-[calc(100vh-4rem)] flex flex-col relative select-none flex-shrink-0"
     >
       {/* Menu Navigation Items */}
       <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 px-3">

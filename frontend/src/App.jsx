@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import Sidebar from './components/layout/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -8,8 +8,8 @@ import RecoveryPlanner from './pages/RecoveryPlanner';
 import LearningMode from './pages/LearningMode';
 import Comparison from './pages/Comparison';
 import Performance from './pages/Performance';
-import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import { useSimulation } from './context/SimulationContext';
 
 /**
  * File: App.jsx
@@ -20,6 +20,14 @@ import Settings from './pages/Settings';
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const { syncGraph, saveActiveProject, saveStatus } = useSimulation();
+
+  // Sync and save active designed topology automatically on tab changes
+  useEffect(() => {
+    syncGraph();
+    saveActiveProject();
+  }, [activePage]);
 
   // Page selection router mapping
   const renderActivePage = () => {
@@ -38,8 +46,6 @@ export default function App() {
         return <Comparison />;
       case 'performance':
         return <Performance />;
-      case 'reports':
-        return <Reports />;
       case 'settings':
         return <Settings />;
       default:
@@ -66,10 +72,22 @@ export default function App() {
           </div>
         </div>
         
-        {/* Active view status */}
+        {/* Active view status & Global Save */}
         <div className="flex items-center gap-4 text-xs font-mono">
+          <button
+            onClick={saveActiveProject}
+            disabled={saveStatus === 'saving'}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#0F1720] font-bold text-xs rounded border border-[#FD802E]/30 transition-colors font-sans shadow-md disabled:opacity-50"
+            title="Save changes to backend database"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span>{saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error!' : 'Save Project'}</span>
+          </button>
+          
+          <div className="h-4 w-[1px] bg-[#4B5563]/30"></div>
+
           <span className="text-[#94A3B8]">Active Module:</span>
-          <span className="px-2 py-0.5 rounded bg-[#FD802E]/10 text-[#FD802E] border border-[#FD802E]/25 uppercase font-bold tracking-wider">
+          <span className="px-2 py-0.5 rounded bg-[#FD802E]/10 text-[#FD802E] border border-[#FD802E]/25 uppercase font-bold tracking-wider font-sans">
             {activePage === 'builder' ? 'Network Builder' : activePage}
           </span>
         </div>
@@ -90,12 +108,6 @@ export default function App() {
           {renderActivePage()}
         </div>
       </div>
-
-      {/* Bottom operations status bar */}
-      <footer className="h-8 border-t border-[#4B5563]/30 bg-[#233D4C]/10 px-6 flex items-center justify-between text-xs text-[#94A3B8] font-mono flex-shrink-0 z-20">
-        <div>KTU B.Tech DAA Viva Lab Project</div>
-        <div>NOC Status: Nominal</div>
-      </footer>
     </div>
   );
 }

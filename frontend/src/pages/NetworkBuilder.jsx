@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactFlow, {
   ReactFlowProvider,
-  MiniMap,
   Controls,
   Background,
   useNodesState,
@@ -599,7 +598,6 @@ function BuilderCanvas() {
           >
             <Background color="#4B5563" gap={16} size={1} />
             <Controls className="react-flow__controls" />
-            <MiniMap className="react-flow__minimap" nodeColor={() => '#233D4C'} />
           </ReactFlow>
 
           {/* Context menu trigger */}

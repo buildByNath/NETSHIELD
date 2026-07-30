@@ -1,84 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Shield, Activity, Users, Layers, AlertCircle, Heart, RefreshCw } from 'lucide-react';
-import { projectService } from '../services/api';
+import React from 'react';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { Shield, Activity, Layers, AlertCircle, Heart, RefreshCw, Clock, Flame } from 'lucide-react';
+import { useSimulation } from '../context/SimulationContext';
 
 /**
  * File: Dashboard.jsx
  * Author: Antigravity AI
- * Purpose: Main dashboard landing page querying graph metrics and showing status pie charts.
+ * Purpose: Main dashboard landing page presenting real-time network health metrics, security ratings, and elapsed execution timers.
  */
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({
-    totalNodes: 0,
-    totalEdges: 0,
-    healthy: 0,
-    infected: 0,
-    recovered: 0,
-    protectedCount: 0,
-  });
-  const [loading, setLoading] = useState(false);
+  const {
+    nodes,
+    edges,
+    mode,
+    simulationStatus,
+    elapsedSeconds,
+    syncGraph
+  } = useSimulation();
 
-  const fetchGraphStats = async () => {
-    setLoading(true);
-    try {
-      // Try local storage autosave draft first
-      const draftStr = localStorage.getItem('netshield_autosave');
-      let nodes = [];
-      let edges = [];
-      
-      if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        nodes = draft.nodes || [];
-        edges = draft.edges || [];
-      } else {
-        // Query backend if local draft is empty
-        const response = await projectService.loadProject();
-        if (response.success && response.project && response.project.network) {
-          nodes = response.project.network.nodes || [];
-          edges = response.project.network.edges || [];
-        }
-      }
-      
-      const healthy = nodes.filter(n => n.data?.status === 'healthy' || n.status === 'healthy').length;
-      const infected = nodes.filter(n => n.data?.status === 'infected' || n.status === 'infected').length;
-      const recovered = nodes.filter(n => n.data?.status === 'recovered' || n.status === 'recovered').length;
-      const protectedCount = nodes.filter(n => n.data?.status === 'protected' || n.status === 'protected').length;
+  // Compute stats in real-time from the node/edge states
+  const totalNodes = nodes.length;
+  const totalEdges = edges.length;
+  const healthy = nodes.filter(n => n.data?.status === 'healthy').length;
+  const infected = nodes.filter(n => n.data?.status === 'infected').length;
+  const recovered = nodes.filter(n => n.data?.status === 'recovered').length;
+  const protectedCount = nodes.filter(n => n.data?.status === 'protected').length;
 
-      setStats({
-        totalNodes: nodes.length,
-        totalEdges: edges.length,
-        healthy,
-        infected,
-        recovered,
-        protectedCount,
-      });
-    } catch (err) {
-      console.error('Failed to load dashboard metrics', err);
-    } finally {
-      setLoading(false);
-    }
+  const totalCompromised = infected;
+  
+  // Average propagation speed: infected count / elapsed seconds
+  const propagationSpeed = elapsedSeconds > 0 ? (infected / elapsedSeconds).toFixed(2) : '0.00';
+
+  // System security rating: (healthy + protected + recovered) / totalNodes
+  const securityPercentage = totalNodes > 0 ? (((healthy + protectedCount + recovered) / totalNodes) * 100) : 100;
+  
+  const getSecurityGrade = (percent) => {
+    if (percent >= 90) return { grade: 'A', status: 'Secure', color: 'text-emerald-400' };
+    if (percent >= 80) return { grade: 'B', status: 'Good', color: 'text-green-400' };
+    if (percent >= 70) return { grade: 'C', status: 'Warning', color: 'text-yellow-400' };
+    if (percent >= 50) return { grade: 'D', status: 'Critical', color: 'text-amber-500' };
+    return { grade: 'F', status: 'Compromised', color: 'text-red-500 animate-pulse' };
   };
 
-  useEffect(() => {
-    fetchGraphStats();
-  }, []);
+  const gradeInfo = getSecurityGrade(securityPercentage);
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // Pie chart data structure
   const pieData = [
-    { name: 'Healthy', value: stats.healthy + stats.protectedCount, color: '#22C55E' },
-    { name: 'Infected', value: stats.infected, color: '#EF4444' },
-    { name: 'Recovered', value: stats.recovered, color: '#3B82F6' },
-  ].filter(item => item.value > 0); // Hide zero categories
+    { name: 'Healthy', value: healthy + protectedCount, color: '#22C55E' },
+    { name: 'Infected', value: infected, color: '#EF4444' },
+    { name: 'Recovered', value: recovered, color: '#3B82F6' },
+  ].filter(item => item.value > 0);
 
-  // Fallback data if empty graph
   const finalPieData = pieData.length > 0 ? pieData : [
     { name: 'No Devices Connected', value: 1, color: '#4B5563' }
   ];
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0F1720] select-none text-sans text-xs">
+      
       {/* Page Title Header */}
       <div className="flex justify-between items-center pb-2 border-b border-[#4B5563]/25">
         <div>
@@ -86,11 +72,10 @@ export default function Dashboard() {
           <p className="text-[#94A3B8] text-[11px] mt-0.5">Real-time summary of network health status metrics.</p>
         </div>
         <button
-          onClick={fetchGraphStats}
-          disabled={loading}
+          onClick={syncGraph}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#233D4C] border border-[#4B5563]/30 hover:border-[#FD802E]/40 text-[#CBD5E1] hover:text-[#FD802E] rounded-lg transition-all"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="h-3.5 w-3.5" />
           Refresh Stats
         </button>
       </div>
@@ -100,8 +85,8 @@ export default function Dashboard() {
         {/* Card: Total nodes */}
         <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider">Total Devices</div>
-            <div className="text-2xl font-black text-[#F8FAFC] mt-1">{stats.totalNodes}</div>
+            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Total Devices</div>
+            <div className="text-2xl font-black text-[#F8FAFC] mt-1 font-mono">{totalNodes}</div>
           </div>
           <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#FD802E] border border-[#4B5563]/10">
             <Layers className="h-6 w-6" />
@@ -111,8 +96,8 @@ export default function Dashboard() {
         {/* Card: Total Edges */}
         <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider">Active Links</div>
-            <div className="text-2xl font-black text-[#F8FAFC] mt-1">{stats.totalEdges}</div>
+            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Active Links</div>
+            <div className="text-2xl font-black text-[#F8FAFC] mt-1 font-mono">{totalEdges}</div>
           </div>
           <div className="p-3 bg-[#0F1720]/50 rounded-lg text-emerald-400 border border-[#4B5563]/10">
             <Activity className="h-6 w-6" />
@@ -122,8 +107,8 @@ export default function Dashboard() {
         {/* Card: Healthy Nodes */}
         <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider">Healthy / Safe</div>
-            <div className="text-2xl font-black text-[#22C55E] mt-1">{stats.healthy + stats.protectedCount}</div>
+            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Healthy / Safe</div>
+            <div className="text-2xl font-black text-[#22C55E] mt-1 font-mono">{healthy + protectedCount}</div>
           </div>
           <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#22C55E] border border-[#4B5563]/10">
             <Heart className="h-6 w-6" />
@@ -133,11 +118,63 @@ export default function Dashboard() {
         {/* Card: Infected Nodes */}
         <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
           <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider">Infected / Compromised</div>
-            <div className="text-2xl font-black text-[#EF4444] mt-1">{stats.infected}</div>
+            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Infected / Compromised</div>
+            <div className="text-2xl font-black text-[#EF4444] mt-1 font-mono">{infected}</div>
           </div>
           <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#EF4444] border border-[#4B5563]/10">
             <AlertCircle className="h-6 w-6 animate-pulse" />
+          </div>
+        </div>
+      </div>
+
+      {/* NOC Real-time Propagation & Security Metrics */}
+      <div className="bg-[#233D4C]/30 border border-[#4B5563]/25 rounded-xl p-5 space-y-4">
+        <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2 flex items-center justify-between">
+          <span>Real-time Attack Propagation & Security Analytics</span>
+          {mode !== 'idle' && (
+            <span className="text-[9px] font-mono bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded uppercase">
+              {mode} active ({simulationStatus})
+            </span>
+          )}
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
+          {/* Compromised Count */}
+          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
+            <div>
+              <span className="text-[9px] text-[#94A3B8] uppercase block">Compromised nodes</span>
+              <span className="text-lg font-bold text-red-500 mt-1 block">{totalCompromised} devices</span>
+            </div>
+            <Flame className="h-5 w-5 text-red-500" />
+          </div>
+
+          {/* Propagation Speed */}
+          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
+            <div>
+              <span className="text-[9px] text-[#94A3B8] uppercase block">Infection Rate</span>
+              <span className="text-lg font-bold text-amber-500 mt-1 block">{propagationSpeed} nodes/s</span>
+            </div>
+            <Activity className="h-5 w-5 text-amber-500" />
+          </div>
+
+          {/* Security Rating */}
+          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
+            <div>
+              <span className="text-[9px] text-[#94A3B8] uppercase block">Security Rating</span>
+              <span className={`text-lg font-bold mt-1 block ${gradeInfo.color}`}>
+                {securityPercentage.toFixed(1)}% - Grade {gradeInfo.grade}
+              </span>
+            </div>
+            <Shield className="h-5 w-5 text-[#3B82F6]" />
+          </div>
+
+          {/* Playback elapsed time */}
+          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
+            <div>
+              <span className="text-[9px] text-[#94A3B8] uppercase block">Elapsed Duration</span>
+              <span className="text-lg font-bold text-cyan-400 mt-1 block">{formatTime(elapsedSeconds)}</span>
+            </div>
+            <Clock className="h-5 w-5 text-cyan-400" />
           </div>
         </div>
       </div>
@@ -177,27 +214,27 @@ export default function Dashboard() {
           <div className="flex gap-4 text-[10px] font-mono text-[#CBD5E1] pt-2">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded bg-[#22C55E]"></span>
-              <span>Healthy: {stats.healthy + stats.protectedCount}</span>
+              <span>Healthy: {healthy + protectedCount}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded bg-[#EF4444]"></span>
-              <span>Infected: {stats.infected}</span>
+              <span>Infected: {infected}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded bg-[#3B82F6]"></span>
-              <span>Recovered: {stats.recovered}</span>
+              <span>Recovered: {recovered}</span>
             </div>
           </div>
         </div>
 
         {/* Informational NOC Log card */}
         <div className="lg:col-span-2 bg-[#233D4C] border border-[#4B5563]/25 rounded-xl p-5 flex flex-col justify-between">
-          <div className="space-y-3">
+          <div className="space-y-3 font-sans">
             <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2">
               System Operations Center Status
             </h3>
             
-            <div className="space-y-4 font-sans text-sm text-[#CBD5E1] leading-relaxed pt-2">
+            <div className="space-y-4 text-sm text-[#CBD5E1] leading-relaxed pt-2">
               <p>
                 Welcome to <strong>NETSHIELD Network Operations Center</strong>. This workspace is customized for studying graph modeling and optimization. Use the left navigation panel to switch modules:
               </p>
@@ -209,7 +246,7 @@ export default function Dashboard() {
                 </div>
                 <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
                   <strong className="text-[#FD802E]">🐛 Attack Simulation</strong>
-                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Model propagation of viruses (Worm, Scanner) running BFS/DFS transversals.</p>
+                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Model propagation of viruses (Worm, Scanner) running BFS/DFS traversals.</p>
                 </div>
                 <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
                   <strong className="text-[#FD802E]">🛡 Recovery Planner</strong>
@@ -224,8 +261,8 @@ export default function Dashboard() {
           </div>
           
           <div className="border-t border-[#4B5563]/15 pt-3 mt-6 flex justify-between items-center text-[10px] font-mono text-[#94A3B8]">
-            <span>Active Project: {stats.totalNodes > 0 ? 'Loaded Network Graph' : 'Empty'}</span>
-            <span>Security Status: Nominal</span>
+            <span>Active Project: {totalNodes > 0 ? 'Loaded Network Graph' : 'Empty'}</span>
+            <span>Security Status: {gradeInfo.status}</span>
           </div>
         </div>
       </div>

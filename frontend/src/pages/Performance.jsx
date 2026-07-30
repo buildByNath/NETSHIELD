@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Activity, Play, Cpu, HardDrive, Clock, Layers, Shield, RefreshCw } from 'lucide-react';
+import { Activity, Play, Pause, RotateCcw, Cpu, HardDrive, Clock, Layers, Shield, RefreshCw, ShieldAlert } from 'lucide-react';
 import { projectService, algorithmService } from '../services/api';
+import { useSimulation } from '../context/SimulationContext';
 
 /**
  * File: Performance.jsx
  * Author: Antigravity AI
- * Purpose: Real-time telemetry dashboard for CPU runtimes and memory allocations.
+ * Purpose: Real-time telemetry dashboard for CPU runtimes, memory allocations, and active background algorithm runs.
  */
 
 const ALGORITHMS_LIST = [
@@ -31,8 +32,24 @@ const ALGORITHMS_LIST = [
 ];
 
 export default function Performance() {
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  const {
+    nodes,
+    edges,
+    mode,
+    algoId,
+    timeline,
+    currentFrame,
+    isPlaying,
+    simulationStatus,
+    statistics: activeStats,
+    elapsedSeconds,
+    pausePlayback,
+    resumePlayback,
+    resetPlayback
+  } = useSimulation();
+
+  const [localNodes, setLocalNodes] = useState([]);
+  const [localEdges, setLocalEdges] = useState([]);
   const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
   
   const [loading, setLoading] = useState(false);
@@ -64,8 +81,8 @@ export default function Performance() {
           loadedEdges = response.project.network.edges || [];
         }
       }
-      setNodes(loadedNodes);
-      setEdges(loadedEdges);
+      setLocalNodes(loadedNodes);
+      setLocalEdges(loadedEdges);
     } catch (err) {
       console.error('Failed to load performance graph', err);
     }
@@ -84,19 +101,18 @@ export default function Performance() {
       const targetAlgo = ALGORITHMS_LIST.find(a => a.id === selectedAlgo);
       
       if (targetAlgo.category === 'Simulation') {
-        const startNode = nodes.length > 0 ? nodes[0].id : 'NET-1';
-        response = await algorithmService.simulateAttack(selectedAlgo, nodes, edges, [startNode]);
+        const startNode = localNodes.length > 0 ? localNodes[0].id : 'NET-1';
+        response = await algorithmService.simulateAttack(selectedAlgo, localNodes, localEdges, [startNode]);
       } else if (targetAlgo.category === 'Recovery') {
-        const startNode = nodes.length > 0 ? nodes[0].id : 'NET-1';
-        const targetNode = nodes.length > 1 ? nodes[nodes.length - 1].id : 'SRV-1';
+        const startNode = localNodes.length > 0 ? localNodes[0].id : 'NET-1';
+        const targetNode = localNodes.length > 1 ? localNodes[localNodes.length - 1].id : 'SRV-1';
         const options = {
           source: startNode,
           destination: targetNode,
           budget: 100.0
         };
-        response = await algorithmService.recoverNetwork(selectedAlgo, nodes, edges, options);
+        response = await algorithmService.recoverNetwork(selectedAlgo, localNodes, localEdges, options);
       } else {
-        // Educational Sort & DP
         if (selectedAlgo === 'merge_sort' || selectedAlgo === 'quick_sort') {
           response = await algorithmService.simulateSort(selectedAlgo, [12, 11, 13, 5, 6, 7]);
         } else if (selectedAlgo === 'matrix_chain') {
@@ -118,7 +134,6 @@ export default function Performance() {
         setMemory(memoryKb);
         setComplexity({ time: timeComp, space: spaceComp });
 
-        // Add to history list
         setHistory(prev => {
           const runNumber = prev.length + 1;
           const next = [
@@ -128,11 +143,10 @@ export default function Performance() {
               algorithm: targetAlgo.name,
               runtime: runTimeMs,
               memory: memoryKb,
-              nodesCount: nodes.length,
-              edgesCount: edges.length
+              nodesCount: localNodes.length,
+              edgesCount: localEdges.length
             }
           ];
-          // Limit to last 15 entries for visualization
           return next.slice(-15);
         });
 
@@ -153,6 +167,16 @@ export default function Performance() {
     setComplexity({ time: 'O(1)', space: 'O(1)' });
   };
 
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const activeFrameData = (timeline && timeline[currentFrame]) || null;
+  const visitedList = activeFrameData?.visited || [];
+  const currentEdge = activeFrameData?.currentEdge || null;
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0F1720] select-none text-sans text-xs">
       
@@ -160,7 +184,7 @@ export default function Performance() {
       <div className="flex justify-between items-center pb-2 border-b border-[#4B5563]/25">
         <div>
           <h2 className="text-xl font-bold text-[#F8FAFC]">REAL-TIME PERFORMANCE TELEMETRY</h2>
-          <p className="text-[#94A3B8] text-[11px] mt-0.5">Track and evaluate low-level CPU execution runtimes and memory allocations.</p>
+          <p className="text-[#94A3B8] text-[11px] mt-0.5 font-sans">Track and evaluate low-level CPU execution runtimes, memory allocations, and background graph processing.</p>
         </div>
         <button
           onClick={loadGraph}
@@ -169,6 +193,102 @@ export default function Performance() {
           <RefreshCw className="h-3.5 w-3.5" />
           Sync Builder Graph
         </button>
+      </div>
+
+      {/* Real-time background execution monitor */}
+      <div className="bg-[#233D4C]/30 border border-[#4B5563]/25 rounded-xl p-5 space-y-4">
+        <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2 flex items-center justify-between">
+          <span>Active Run Monitor (Background Simulation)</span>
+          {mode !== 'idle' && (
+            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase">
+              <span className={`h-2.5 w-2.5 rounded-full ${simulationStatus === 'running' ? 'bg-[#22C55E] animate-ping' : 'bg-amber-500'}`} />
+              {simulationStatus}
+            </span>
+          )}
+        </h3>
+
+        {mode !== 'idle' ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-sans">
+            
+            {/* Run details */}
+            <div className="space-y-3 p-4 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
+              <div className="flex justify-between text-[11px] border-b border-[#4B5563]/10 pb-2">
+                <span className="text-[#94A3B8] font-semibold">Active Mode:</span>
+                <span className="text-[#FD802E] font-bold uppercase">{mode}</span>
+              </div>
+              <div className="flex justify-between text-[11px] border-b border-[#4B5563]/10 pb-2">
+                <span className="text-[#94A3B8] font-semibold">Algorithm:</span>
+                <span className="text-[#F8FAFC] font-mono">{algoId.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between text-[11px] border-b border-[#4B5563]/10 pb-2">
+                <span className="text-[#94A3B8] font-semibold">Elapsed Duration:</span>
+                <span className="text-cyan-400 font-bold font-mono">{formatTime(elapsedSeconds)}</span>
+              </div>
+              
+              {/* Telemetry controls */}
+              <div className="flex items-center gap-2 pt-1.5">
+                {isPlaying ? (
+                  <button onClick={pausePlayback} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#FD802E] text-white rounded font-bold uppercase text-[9px]">
+                    <Pause className="h-3 w-3" /> Pause
+                  </button>
+                ) : (
+                  <button onClick={resumePlayback} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#22C55E] text-white rounded font-bold uppercase text-[9px]">
+                    <Play className="h-3 w-3" /> Resume
+                  </button>
+                )}
+                <button onClick={resetPlayback} className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#EF4444] text-white rounded font-bold uppercase text-[9px]">
+                  <RotateCcw className="h-3 w-3" /> Stop
+                </button>
+              </div>
+            </div>
+
+            {/* Traversed nodes */}
+            <div className="space-y-2 p-4 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 flex flex-col overflow-hidden">
+              <div className="flex justify-between items-center text-[11px] border-b border-[#4B5563]/10 pb-2">
+                <span className="text-[#94A3B8] font-semibold">Visited/Recovered Nodes:</span>
+                <span className="text-[#3B82F6] font-bold font-mono">
+                  {visitedList.length} / {nodes.length} ({nodes.length > 0 ? ((visitedList.length / nodes.length) * 100).toFixed(1) : 0}%)
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto max-h-24 pt-1 flex flex-wrap gap-1 font-mono text-[9px] align-content-start">
+                {visitedList.length > 0 ? (
+                  visitedList.map(nodeId => (
+                    <span key={nodeId} className="px-1.5 py-0.5 rounded bg-[#3B82F6]/10 border border-[#3B82F6]/25 text-[#3B82F6]">
+                      {nodeId}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[#94A3B8] italic">No nodes processed yet.</span>
+                )}
+              </div>
+            </div>
+
+            {/* Traversed edges */}
+            <div className="space-y-2 p-4 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center text-[11px] border-b border-[#4B5563]/10 pb-2">
+                  <span className="text-[#94A3B8] font-semibold">Currently Probing Edge:</span>
+                  <span className="text-amber-400 font-bold font-mono">
+                    {currentEdge ? `${currentEdge[0]} ↔ ${currentEdge[1]}` : 'None'}
+                  </span>
+                </div>
+                <div className="mt-3 text-[10px] text-[#CBD5E1] font-mono leading-relaxed space-y-1">
+                  <div>Time Complexity: <span className="text-emerald-400">{activeStats.timeComplexity || 'O(V + E)'}</span></div>
+                  <div>Space Complexity: <span className="text-emerald-400">{activeStats.spaceComplexity || 'O(V)'}</span></div>
+                  <div>Edges Traversed: <span className="text-amber-400">{activeStats.edgesTraversed ?? activeStats.priorityQueueOps ?? 0}</span></div>
+                </div>
+              </div>
+              <div className="text-[10px] text-[#94A3B8] italic border-t border-[#4B5563]/10 pt-1.5">
+                Note: Performance telemetry stats update at each frame duration of the network player.
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          <div className="p-6 text-center text-[#94A3B8] italic">
+            No active background simulation running. Go to Attack Simulator or Recovery Planner and start a traversal run to inspect real-time metrics.
+          </div>
+        )}
       </div>
 
       {/* Control bar */}
@@ -206,7 +326,7 @@ export default function Performance() {
 
       {errorMsg && (
         <div className="p-3 bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] rounded-lg font-mono flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
+          <ShieldAlert className="h-4 w-4" />
           <span>{errorMsg}</span>
         </div>
       )}
@@ -251,7 +371,7 @@ export default function Performance() {
           <div className="space-y-0.5">
             <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Graph scale</span>
             <div className="text-sm font-black text-[#F8FAFC] font-mono mt-2 uppercase">
-              V: {nodes.length} | E: {edges.length}
+              V: {localNodes.length} | E: {localEdges.length}
             </div>
           </div>
           <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#F8FAFC] border border-[#4B5563]/10">
@@ -281,7 +401,7 @@ export default function Performance() {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-[#94A3B8] italic text-center">Trend lines will populate on running telemetry.</div>
+              <div className="text-[#94A3B8] italic text-center font-sans">Trend lines will populate on running telemetry.</div>
             )}
           </div>
         </div>
@@ -315,7 +435,7 @@ export default function Performance() {
                 </div>
               ))
             ) : (
-              <div className="h-full flex items-center justify-center text-[#94A3B8] italic text-center">
+              <div className="h-full flex items-center justify-center text-[#94A3B8] italic text-center font-sans">
                 History is empty.
               </div>
             )}

@@ -1,9 +1,37 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactFlow, {
+  Controls,
+  Background
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { 
   BookOpen, Play, Pause, RotateCcw, ChevronRight, ChevronLeft, 
   HelpCircle, Code2, Cpu, Award, Zap, Sliders, ChevronDown
 } from 'lucide-react';
 import { algorithmService } from '../services/api';
+import CustomNode from '../components/network/CustomNode';
+import CustomEdge from '../components/network/CustomEdge';
+import { useSimulation } from '../context/SimulationContext';
+
+const nodeTypes = {
+  Internet: CustomNode,
+  Firewall: CustomNode,
+  Router: CustomNode,
+  'Core Switch': CustomNode,
+  'Access Switch': CustomNode,
+  PC: CustomNode,
+  Laptop: CustomNode,
+  Printer: CustomNode,
+  'Application Server': CustomNode,
+  'Database Server': CustomNode,
+  'Backup Server': CustomNode,
+  'Wireless Access Point': CustomNode,
+  Cloud: CustomNode
+};
+
+const edgeTypes = {
+  customEdge: CustomEdge
+};
 
 /**
  * File: LearningMode.jsx
@@ -109,6 +137,19 @@ const SPEED_LEVELS = [
 export default function LearningMode() {
   const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'merge_sort'));
   
+  // Simulation context hook
+  const { 
+    originalNodes, 
+    originalEdges,
+    startNodes,
+    recoverySource,
+    recoveryTarget
+  } = useSimulation();
+
+  // Local React Flow visualizer states
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+
   // Custom Visualizer Inputs
   const [sortInput, setSortInput] = useState('29, 10, 14, 37, 13, 2, 7');
   const [matrixDimsInput, setMatrixDimsInput] = useState('10, 20, 30, 40, 30');
@@ -126,6 +167,109 @@ export default function LearningMode() {
   
   const playbackInterval = useRef(null);
 
+  // Effect to apply styling based on current playback timeline frame
+  useEffect(() => {
+    if (!activeAlgo.isGraph || originalNodes.length === 0) return;
+    
+    if (timeline.length === 0) {
+      setNodes(originalNodes.map(n => ({
+        ...n,
+        data: { ...n.data, status: 'healthy' }
+      })));
+      setEdges(originalEdges.map(e => ({
+        ...e,
+        selected: false,
+        data: { ...e.data, isSimulation: false, isRecovery: false }
+      })));
+      return;
+    }
+
+    const frame = timeline[currentFrame] || {};
+    const visitedSet = new Set(frame.visited || []);
+    const activeNode = frame.currentNode;
+    const activeEdge = frame.currentEdge;    
+    let startNodeId = '';
+    if (activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs') {
+      startNodeId = startNodes.length > 0 ? startNodes[0] : (originalNodes[0]?.id || '');
+    } else {
+      startNodeId = recoverySource || (startNodes.length > 0 ? startNodes[0] : (originalNodes[0]?.id || ''));
+    }
+    const targetNodeId = recoveryTarget || '';
+    const isAttack = activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs';
+
+    if (isAttack) {
+      setNodes(originalNodes.map(n => {
+        let status = 'healthy';
+        if (visitedSet.has(n.id)) status = 'infected';
+        if (activeNode === n.id) status = 'infected';
+        
+        const isStart = n.id === startNodeId;
+        return {
+          ...n,
+          selected: activeNode === n.id,
+          data: {
+            ...n.data,
+            status: status === 'infected' ? 'infected' : (isStart ? 'protected' : 'healthy')
+          }
+        };
+      }));
+
+      setEdges(originalEdges.map(e => {
+        const isActive = activeEdge && (
+          (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
+          (e.source === activeEdge[1] && e.target === activeEdge[0])
+        );
+        return {
+          ...e,
+          selected: !!isActive,
+          data: {
+            ...e.data,
+            isSimulation: !!isActive,
+            isRecovery: false
+          }
+        };
+      }));
+    } else {
+      // Recovery algorithm tracing
+      setNodes(originalNodes.map(n => {
+        let status = 'healthy';
+        if (visitedSet.has(n.id)) status = 'recovered';
+        if (activeNode === n.id) status = 'recovered';
+        
+        const isSrc = n.id === startNodeId;
+        const isDst = n.id === targetNodeId;
+        if ((isSrc || isDst) && status !== 'recovered') {
+          status = 'protected'; // gold highlight
+        }
+        
+        return {
+          ...n,
+          selected: activeNode === n.id,
+          data: {
+            ...n.data,
+            status
+          }
+        };
+      }));
+
+      setEdges(originalEdges.map(e => {
+        const isActive = activeEdge && (
+          (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
+          (e.source === activeEdge[1] && e.target === activeEdge[0])
+        );
+        return {
+          ...e,
+          selected: !!isActive,
+          data: {
+            ...e.data,
+            isSimulation: false,
+            isRecovery: !!isActive
+          }
+        };
+      }));
+    }
+  }, [currentFrame, timeline, activeAlgo, originalNodes, originalEdges]);
+
   const handlePrevStep = () => {
     setIsPlaying(false);
     setCurrentFrame(prev => Math.max(0, prev - 1));
@@ -138,40 +282,76 @@ export default function LearningMode() {
 
   // Trigger loading details of the chosen algorithm
   const fetchAlgorithmDetails = async () => {
-    // If it's a graph algorithm, we show descriptions, complexities, and tell them to run it in builder/recovery
-    if (activeAlgo.isGraph) {
-      setTimeline([]);
-      setStatistics({});
-      return;
-    }
-
     setLoading(true);
     setErrorMsg('');
     setIsPlaying(false);
     setCurrentFrame(0);
     setTimeline([]);
+    setStatistics({});
+    setLearning({});
     
     try {
       let response;
-      if (activeAlgo.id === 'merge_sort') {
-        const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
-        response = await algorithmService.simulateSort('merge_sort', arr);
-      } else if (activeAlgo.id === 'quick_sort') {
-        const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
-        response = await algorithmService.simulateSort('quick_sort', arr);
-      } else if (activeAlgo.id === 'matrix_chain') {
-        const dims = matrixDimsInput.split(',').map(n => parseInt(n.trim()) || 10);
-        response = await algorithmService.simulateDP(dims);
-      } else if (activeAlgo.id === 'strassen') {
-        // default 2x2 Strassen
-        response = await algorithmService.simulateStrassen(
-          [[1, 2], [3, 4]],
-          [[5, 6], [7, 8]]
-        );
-      } else if (activeAlgo.id === 'nqueens') {
-        response = await algorithmService.simulateNQueens(queensSize);
-      }
+      if (activeAlgo.isGraph) {
+        // Run graph algorithms on the current context graph topology
+        const nodesToUse = originalNodes.length > 0 ? originalNodes : [];
+        const edgesToUse = originalEdges.length > 0 ? originalEdges : [];
+        
+        if (nodesToUse.length === 0) {
+          setErrorMsg('No active network topology loaded. Please open the Network Builder first.');
+          setLoading(false);
+          return;
+        }
 
+        let startNode = '';
+        if (activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs') {
+          startNode = startNodes.length > 0 ? startNodes[0] : (nodesToUse[0]?.id || '');
+        } else {
+          startNode = recoverySource || (startNodes.length > 0 ? startNodes[0] : (nodesToUse[0]?.id || ''));
+        }
+        
+        let targetNode = recoveryTarget;
+        if (!targetNode) {
+          const serverNodes = nodesToUse.filter(n => n.id.startsWith('SRV-'));
+          if (serverNodes.length > 0) {
+            targetNode = serverNodes[0].id;
+          } else {
+            targetNode = nodesToUse.find(n => n.id !== startNode)?.id || '';
+          }
+        }
+
+        if (activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs') {
+          // Attack simulation request
+          response = await algorithmService.simulateAttack(activeAlgo.id, nodesToUse, edgesToUse, [startNode]);
+        } else {
+          // Recovery request
+          const options = {
+            source: startNode,
+            destination: targetNode,
+            budget: 1000
+          };
+          response = await algorithmService.recoverNetwork(activeAlgo.id, nodesToUse, edgesToUse, options);
+        }
+      } else {
+        // Non-graph algorithms
+        if (activeAlgo.id === 'merge_sort') {
+          const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
+          response = await algorithmService.simulateSort('merge_sort', arr);
+        } else if (activeAlgo.id === 'quick_sort') {
+          const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
+          response = await algorithmService.simulateSort('quick_sort', arr);
+        } else if (activeAlgo.id === 'matrix_chain') {
+          const dims = matrixDimsInput.split(',').map(n => parseInt(n.trim()) || 10);
+          response = await algorithmService.simulateDP(dims);
+        } else if (activeAlgo.id === 'strassen') {
+          response = await algorithmService.simulateStrassen(
+            [[1, 2], [3, 4]],
+            [[5, 6], [7, 8]]
+          );
+        } else if (activeAlgo.id === 'nqueens') {
+          response = await algorithmService.simulateNQueens(queensSize);
+        }
+      }
       if (response && response.success) {
         setTimeline(response.timeline || []);
         setStatistics(response.statistics || {});
@@ -180,7 +360,8 @@ export default function LearningMode() {
         setErrorMsg('Failed to run computation timeline.');
       }
     } catch (err) {
-      setErrorMsg('API connection error.');
+      console.error('Learning Mode fetch error', err);
+      setErrorMsg(err.response?.data?.detail || 'API connection error.');
     } finally {
       setLoading(false);
     }
@@ -233,20 +414,125 @@ export default function LearningMode() {
   // Render Visualizer panels based on algorithm type
   const renderVisualizerContent = () => {
     if (activeAlgo.isGraph) {
+      if (originalNodes.length === 0) {
+        return (
+          <div className="flex-1 flex flex-col justify-center items-center text-center p-8 bg-[#0F1720]/30 rounded-xl border border-[#4B5563]/15 font-sans">
+            <BookOpen className="h-16 w-16 text-[#3B82F6] mb-4 animate-pulse" />
+            <h4 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wider mb-2">No Active Graph Loaded</h4>
+            <p className="text-[#94A3B8] max-w-sm mb-6 leading-relaxed">
+              Please open the Network Builder first and save a default topology.
+            </p>
+          </div>
+        );
+      }
+
+      const activeStartNode = activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs'
+        ? (startNodes.length > 0 ? startNodes[0] : (originalNodes[0]?.id || 'None'))
+        : (recoverySource || (startNodes.length > 0 ? startNodes[0] : (originalNodes[0]?.id || 'None')));
+
+      const activeTargetNode = recoveryTarget || (originalNodes.filter(n => n.id.startsWith('SRV-'))[0]?.id || originalNodes[originalNodes.length - 1]?.id || 'None');
+
       return (
-        <div className="flex-1 flex flex-col justify-center items-center text-center p-8 bg-[#0F1720]/30 rounded-xl border border-[#4B5563]/15">
-          <BookOpen className="h-16 w-16 text-[#3B82F6] mb-4 animate-pulse" />
-          <h4 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wider mb-2">Graph Algorithm Reference</h4>
-          <p className="text-[#94A3B8] max-w-sm mb-6 leading-relaxed">
-            This algorithm models active connections on a network topology graph. Open the builder or recovery planner to run this visualization on live hubs.
-          </p>
-          <div className="flex gap-4">
-            <span className="text-[10px] font-bold bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/20 px-3 py-1.5 rounded-lg">
-              Check out Network Builder
-            </span>
-            <span className="text-[10px] font-bold bg-[#FD802E]/10 text-[#FD802E] border border-[#FD802E]/20 px-3 py-1.5 rounded-lg">
-              Check out Recovery Planner
-            </span>
+        <div className="flex-1 flex flex-col justify-between h-full space-y-4 relative">
+          {/* React Flow Canvas */}
+          <div className="flex-1 min-h-[300px] border border-[#4B5563]/25 rounded-xl overflow-hidden bg-[#0F1720]">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={true}
+              fitView
+              minZoom={0.1}
+              maxZoom={4}
+            >
+              <Background color="#4B5563" gap={16} size={1} />
+              <Controls />
+            </ReactFlow>
+          </div>
+          
+          {/* Data Structure Visualizer Trace */}
+          {timeline.length > 0 && (() => {
+            const rawQueue = activeFrame.queue || [];
+            const displayQueue = [...rawQueue];
+            const activeNode = activeFrame.currentNode;
+            if (activeNode) {
+              const rawQueueLabels = rawQueue.map(item => 
+                typeof item === 'string' 
+                  ? item 
+                  : (item.node || item.id || (item.vertex !== undefined ? item.vertex : ''))
+              );
+              if (!rawQueueLabels.includes(activeNode)) {
+                if (activeAlgo.id === 'dfs') {
+                  displayQueue.push(activeNode);
+                } else {
+                  displayQueue.unshift(activeNode);
+                }
+              }
+            }
+
+            return (
+              <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex flex-col gap-2 font-sans select-none">
+                <div className="flex items-center justify-between border-b border-[#4B5563]/15 pb-1">
+                  <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">
+                    {activeAlgo.id === 'dfs' ? 'LIFO Stack Trace' : activeAlgo.id === 'dijkstra' || activeAlgo.id === 'prim' ? 'Priority Queue Trace' : 'FIFO Queue Trace'}
+                  </span>
+                  <span className="text-[8px] bg-[#3B82F6]/20 text-[#3B82F6] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
+                    {activeAlgo.id === 'dfs' ? 'LIFO' : 'FIFO'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto min-h-[32px] py-1">
+                  {displayQueue.length > 0 ? (
+                    displayQueue.map((item, idx) => {
+                      const label = typeof item === 'string' 
+                        ? item 
+                        : (item.node || item.id || (item.vertex !== undefined ? item.vertex : JSON.stringify(item)));
+                      const isActive = label === activeNode;
+                      return (
+                        <div key={idx} className="flex items-center gap-1.5 flex-shrink-0">
+                          <span 
+                            className={`px-2.5 py-1 rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0 transition-all ${
+                              isActive 
+                                ? 'bg-[#EF4444]/20 border-2 border-[#EF4444] text-[#EF4444] animate-pulse' 
+                                : 'bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E]'
+                            }`}
+                            title={isActive ? 'Currently Dequeued / Processing Neighbor Devices' : 'Waiting in Queue'}
+                          >
+                            {label} {isActive && ' (Active)'}
+                          </span>
+                          {idx < displayQueue.length - 1 && (
+                            <span className="text-[#4B5563] text-[10px] font-bold">→</span>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span className="text-[10px] text-[#94A3B8] italic">No active elements in data structure.</span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Variable trace logs */}
+          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex justify-between items-center font-sans text-[10px]">
+            <div className="flex gap-4">
+              <span className="text-[#94A3B8]">
+                Start Node: <strong className="text-[#FD802E]">{activeStartNode}</strong>
+              </span>
+              {activeAlgo.id === 'dijkstra' && (
+                <span className="text-[#94A3B8]">
+                  Target Node: <strong className="text-[#FD802E]">{activeTargetNode}</strong>
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <span className="bg-[#FD802E]/10 text-[#FD802E] px-2 py-0.5 rounded border border-[#FD802E]/20">
+                Steps: {timeline.length}
+              </span>
+            </div>
           </div>
         </div>
       );
@@ -700,18 +986,28 @@ export default function LearningMode() {
           </div>
 
           {/* Tracing details Log / Pseudocode card */}
-          {activeAlgo.pseudo && (
+          {(activeAlgo.pseudo || (learning && learning.pseudoCode)) && (
             <div className="flex-1 flex flex-col overflow-hidden border border-[#4B5563]/25 rounded-lg bg-[#0F1720]/40">
-              <div className="bg-[#1B2838] px-3 py-1.5 border-b border-[#4B5563]/25 text-[10px] font-bold text-[#FD802E] uppercase tracking-wider flex items-center gap-1.5 font-sans">
+              <div className="bg-[#1B2838] px-3 py-1.5 border-b border-[#4B5563]/25 text-[10px] font-bold text-[#FD802E] uppercase tracking-wider flex items-center gap-1.5 font-sans flex-shrink-0">
                 <Code2 className="h-4 w-4" />
                 Algorithm Pseudocode
               </div>
               <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
-                {activeAlgo.pseudo.map((line, idx) => (
-                  <div key={idx} className="px-1.5 py-0.5 rounded">
-                    {line}
-                  </div>
-                ))}
+                {(activeAlgo.pseudo || learning.pseudoCode).map((line, idx) => {
+                  const isActiveLine = learning && learning.activeLine === idx;
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`px-1.5 py-0.5 rounded transition-all ${
+                        isActiveLine 
+                          ? 'bg-[#FD802E]/25 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' 
+                          : ''
+                      }`}
+                    >
+                      {line}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
