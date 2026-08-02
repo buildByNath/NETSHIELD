@@ -12,6 +12,11 @@ import { algorithmService } from '../services/api';
 import CustomNode from '../components/network/CustomNode';
 import CustomEdge from '../components/network/CustomEdge';
 import { useSimulation } from '../context/SimulationContext';
+import { 
+  QueueVisualizer, StackVisualizer, PriorityQueueVisualizer, DistanceTable, 
+  TraversalJourney, ArrayVisualizer, MatrixVisualizer, UnionFindVisualizer, 
+  MSTVisualizer, KnapsackVisualizer, ChessboardVisualizer
+} from '../components/learning/Visualizers';
 
 const nodeTypes = {
   Internet: CustomNode,
@@ -36,10 +41,10 @@ const edgeTypes = {
 /**
  * File: LearningMode.jsx
  * Author: Antigravity AI
- * Purpose: Interactive textbook and laboratory visualizer for all 15 DAA algorithms.
+ * Purpose: Interactive textbook and laboratory visualizer for all 17 DAA algorithms.
  */
 
-// Categorized directory of all 12 graph algorithms
+// Categorized directory of all 17 algorithms
 const ALGORITHMS = [
   // Graph Traversals
   { id: 'bfs', name: 'Worm Propagation (BFS)', category: 'Graph Traversal', complexity: { time: 'O(V + E)', space: 'O(V)' }, isGraph: true,
@@ -68,7 +73,63 @@ const ALGORITHMS = [
   { id: 'branch_bound', name: 'Branch and Bound', category: 'Greedy & DP', complexity: { time: 'O(2^N) Worst', space: 'O(2^N)' }, isGraph: true,
     desc: "Solves 0/1 binary decision Knapsack by building a state search tree, calculating fractional upper bounds, and pruning paths." },
   { id: 'tsp', name: 'Traveling Salesman Tour', category: 'Greedy & DP', complexity: { time: 'O(N!)', space: 'O(N)' }, isGraph: true,
-    desc: "Finds the shortest inspection route visiting a list of devices once and returning to start using backtracking search." }
+    desc: "Finds the shortest inspection route visiting a list of devices once and returning to start using backtracking search." },
+  // Restored sorting & chess algorithms
+  { id: 'merge_sort', name: 'Merge Sort (Packet Size)', category: 'Sorting', complexity: { time: 'O(N log N)', space: 'O(N)' }, isGraph: false,
+    desc: "Divide-and-conquer packet sorting. Recursively splits packets array in halves, sorts sub-arrays, and merges them.",
+    pseudo: [
+      "MergeSort(A, p, r):",
+      "  if p < r:",
+      "    q = (p + r) / 2",
+      "    MergeSort(A, p, q)",
+      "    MergeSort(A, q + 1, r)",
+      "    Merge(A, p, q, r)"
+    ] },
+  { id: 'quick_sort', name: 'Quick Sort (Response Time)', category: 'Sorting', complexity: { time: 'O(N log N)', space: 'O(log N)' }, isGraph: false,
+    desc: "Sorts packet delays using randomized pivoting. Recursively partitions elements around a pivot value.",
+    pseudo: [
+      "QuickSort(A, p, r):",
+      "  if p < r:",
+      "    q = Partition(A, p, r)",
+      "    QuickSort(A, p, q - 1)",
+      "    QuickSort(A, q + 1, r)"
+    ] },
+  { id: 'matrix_chain', name: 'Matrix Chain Order (DP)', category: 'Greedy & DP', complexity: { time: 'O(N³)', space: 'O(N²)' }, isGraph: false,
+    desc: "Dynamic programming solution determining the most efficient matrix configuration order.",
+    pseudo: [
+      "MatrixChainOrder(p):",
+      "  n = p.length - 1",
+      "  for l = 2 to n:",
+      "    for i = 1 to n - l + 1:",
+      "      j = i + l - 1",
+      "      m[i,j] = infinity",
+      "      for k = i to j - 1:",
+      "        q = m[i,k] + m[k+1,j] + p[i-1]*p[k]*p[j]",
+      "        if q < m[i,j]: m[i,j] = q, s[i,j] = k"
+    ] },
+  { id: 'strassen', name: 'Strassen Multiplication', category: 'Divide & Conquer', complexity: { time: 'O(N^2.81)', space: 'O(N²)' }, isGraph: false,
+    desc: "Divide-and-conquer matrix multiplication. Reduces standard sub-multiplications from 8 to 7 using algebraic sub-products.",
+    pseudo: [
+      "Strassen(A, B):",
+      "  M1 = (A11 + A22) * (B11 + B22)",
+      "  M2 = (A21 + A22) * B11",
+      "  M3 = A11 * (B12 - B22)",
+      "  C11 = M1 + M4 - M5 + M7",
+      "  C12 = M3 + M5",
+      "  C21 = M2 + M4",
+      "  C22 = M1 - M2 + M3 + M6"
+    ] },
+  { id: 'nqueens', name: 'Firewall Placement (N-Queens)', category: 'Backtracking', complexity: { time: 'O(N!)', space: 'O(N)' }, isGraph: false,
+    desc: "Backtracking puzzle placing security firewall devices on a grid so they do not interfere with each other.",
+    pseudo: [
+      "SolveNQueens(board, row):",
+      "  if row == N: add solution; return",
+      "  for col = 0 to N - 1:",
+      "    if is_safe(board, row, col):",
+      "      board[row] = col",
+      "      SolveNQueens(board, row + 1)",
+      "      board[row] = -1 // Backtrack"
+    ] }
 ];
 
 // Speed playback level selections
@@ -294,6 +355,17 @@ export default function LearningMode() {
           };
           response = await algorithmService.recoverNetwork(activeAlgo.id, nodesToUse, edgesToUse, options);
         }
+      } else {
+        // Run non-graph algorithms
+        if (activeAlgo.id === 'merge_sort' || activeAlgo.id === 'quick_sort') {
+          response = await algorithmService.simulateSort(activeAlgo.id, [8, 3, 7, 2, 5]);
+        } else if (activeAlgo.id === 'matrix_chain') {
+          response = await algorithmService.simulateDP([10, 20, 30, 40]);
+        } else if (activeAlgo.id === 'strassen') {
+          response = await algorithmService.simulateStrassen([[1, 0], [0, 1]], [[5, 6], [7, 8]]);
+        } else if (activeAlgo.id === 'nqueens') {
+          response = await algorithmService.simulateNQueens(4);
+        }
       }
       if (response && response.success) {
         setTimeline(response.timeline || []);
@@ -433,279 +505,175 @@ export default function LearningMode() {
     return null;
   };
 
-  const renderDataStructureVisualizer = () => {
+  const getExplanationWhy = (algoId, frame, prevFrame) => {
+    if (!frame) return "Algorithm initialized.";
+    
+    switch (algoId) {
+      case 'bfs':
+        if (frame.currentEdge) return `Worm traverses link ${frame.currentEdge[0]} ── ${frame.currentEdge[1]} to compromise adjacent devices.`;
+        if (frame.currentNode) return `Extracting front node ${frame.currentNode} from FIFO Queue to examine unvisited adjacent neighbor nodes.`;
+        return "Discovered neighbors are enqueued to the rear of the FIFO Queue.";
+      case 'dfs':
+        if (frame.action?.includes('backtrack') || frame.action?.includes('dead-end')) return `Backtracking through previous link since no unvisited adjacent nodes remain.`;
+        if (frame.currentNode) return `Exploring deeper from node ${frame.currentNode} and pushing it onto the LIFO stack.`;
+        return "DFS traverses deep into tree branch paths using LIFO ordering.";
+      case 'dijkstra':
+        return "Dijkstra extracts the minimum path cost estimate from the priority queue and relaxes adjacent neighbors.";
+      case 'prim':
+        return "Prim's selects the minimum weight candidate edge connected to our active MST vertices to grow the tree.";
+      case 'kruskal':
+        return "Kruskal sorts all graph edges by weight and union-finds parent sets to add edges without cycles.";
+      case 'nqueens':
+        if (frame.action?.includes('Backtrack')) return "Queen configuration conflict detected! Backtracking to the previous row.";
+        return "Placing a new Queen on the chessboard row cell, checking safety status against existing queens.";
+      default:
+        return frame.action || "Algorithm is processing elements in chronological execution ticks.";
+    }
+  };
+
+  const renderNonGraphVisualizer = () => {
     if (!activeFrame) return null;
-    const rawQueue = activeFrame.queue || [];
-    const activeNode = activeFrame.currentNode;
-
-    const formatLabel = (item) => {
-      if (typeof item === 'string') return item;
-      return item.node || item.id || JSON.stringify(item);
-    };
-
+    
     switch (activeAlgo.id) {
-      case 'bfs': {
-        const displayQueue = [...rawQueue];
-        if (activeNode) {
-          const rawQueueLabels = rawQueue.map(item => formatLabel(item));
-          if (!rawQueueLabels.includes(activeNode)) {
-            displayQueue.unshift(activeNode);
-          }
-        }
-        const maxQ = timeline.reduce((max, f) => Math.max(max, (f.queue || []).length), 0) + 1;
-
+      case 'merge_sort':
+      case 'quick_sort':
         return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">FIFO Queue (Breadth-First Search)</span>
-              <span className="text-[9px] bg-[#22C55E]/15 text-[#22C55E] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#22C55E]/20">FIFO</span>
-            </div>
-            
-            <div className="flex items-center justify-between text-[9px] text-[#94A3B8] px-1 font-mono">
-              <span className="flex items-center gap-1 font-bold text-emerald-400">FRONT ↓</span>
-              <span className="flex items-center gap-1 font-bold text-amber-500">↑ REAR</span>
-            </div>
-
-            <div className="flex items-center gap-2 overflow-x-auto min-h-[44px] py-1 border border-[#4B5563]/10 bg-[#0F1720]/40 rounded-lg px-3">
-              {displayQueue.length > 0 ? (
-                displayQueue.map((item, idx) => {
-                  const label = formatLabel(item);
-                  const isActive = label === activeNode;
-                  return (
-                    <div key={idx} className="flex items-center gap-1.5 flex-shrink-0">
-                      <span 
-                        className={`px-3 py-1.5 rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0 transition-all ${
-                          isActive 
-                            ? 'bg-[#EF4444]/25 border-2 border-[#EF4444] text-[#EF4444] animate-pulse' 
-                            : 'bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E]'
-                        }`}
-                      >
-                        {label} {isActive && ' (Active)'}
-                      </span>
-                      {idx < displayQueue.length - 1 && (
-                        <span className="text-[#4B5563] text-[10px] font-bold">→</span>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <span className="text-[10px] text-[#94A3B8] italic">Queue is empty.</span>
-              )}
-            </div>
-
-            <div className="flex justify-between items-center text-[9px] text-[#94A3B8] font-mono border-t border-[#4B5563]/10 pt-2">
-              <span>Queue Size: <strong className="text-[#22C55E]">{displayQueue.length}</strong></span>
-              <span>Max Queue Size: <strong className="text-[#FD802E]">{maxQ}</strong></span>
+          <ArrayVisualizer 
+            array={activeFrame.array || activeFrame.state || []} 
+            activeIndices={activeFrame.activeIndices || []} 
+            pivotIndex={activeFrame.pivotIndex ?? -1} 
+          />
+        );
+      case 'nqueens':
+        return (
+          <ChessboardVisualizer 
+            board={activeFrame.board || []} 
+            activeRow={activeFrame.row ?? -1} 
+            activeCol={activeFrame.col ?? -1} 
+          />
+        );
+      case 'matrix_chain':
+        return (
+          <MatrixVisualizer 
+            matrix={activeFrame.costMatrix || activeFrame.m || []} 
+            changedCell={activeFrame.changedCell || null} 
+          />
+        );
+      case 'strassen':
+        return (
+          <div className="flex flex-col items-center gap-3 w-full font-mono text-[9px] select-none">
+            <div className="grid grid-cols-2 gap-4 w-full">
+              <div className="bg-[#0F1720]/45 border border-[#4B5563]/15 rounded-xl p-2.5 max-h-[160px] overflow-y-auto">
+                <span className="text-[8.5px] text-[#94A3B8] uppercase block mb-1">Matrix Product Outputs</span>
+                <div className="space-y-1.5">
+                  <div>M1 = <span className="text-cyan-400">{(activeFrame.M?.M1 ?? 0).toFixed(1)}</span></div>
+                  <div>M2 = <span className="text-cyan-400">{(activeFrame.M?.M2 ?? 0).toFixed(1)}</span></div>
+                  <div>M3 = <span className="text-cyan-400">{(activeFrame.M?.M3 ?? 0).toFixed(1)}</span></div>
+                  <div>M4 = <span className="text-cyan-400">{(activeFrame.M?.M4 ?? 0).toFixed(1)}</span></div>
+                  <div>M5 = <span className="text-cyan-400">{(activeFrame.M?.M5 ?? 0).toFixed(1)}</span></div>
+                  <div>M6 = <span className="text-cyan-400">{(activeFrame.M?.M6 ?? 0).toFixed(1)}</span></div>
+                  <div>M7 = <span className="text-cyan-400">{(activeFrame.M?.M7 ?? 0).toFixed(1)}</span></div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <span className="text-[8.5px] text-[#94A3B8] uppercase block">Computed Result C</span>
+                <MatrixVisualizer matrix={activeFrame.matrixC || activeFrame.C || []} />
+              </div>
             </div>
           </div>
         );
-      }
+      default:
+        return <div className="text-[#94A3B8] italic text-[10px]">No visual states for non-graph active simulation.</div>;
+    }
+  };
 
-      case 'dfs': {
-        const displayStack = [...(activeFrame.stack || [])];
-        if (activeNode && !displayStack.includes(activeNode)) {
-          displayStack.push(activeNode);
-        }
-
+  const renderVisualDataStructureComponent = () => {
+    if (!activeFrame) return null;
+    
+    switch (activeAlgo.id) {
+      case 'bfs':
+        return <QueueVisualizer items={activeFrame.queue || []} activeNode={activeFrame.currentNode} />;
+      case 'dfs':
+        return <StackVisualizer items={activeFrame.stack || []} activeNode={activeFrame.currentNode} />;
+      case 'dijkstra':
         return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">LIFO Stack (Depth-First Search)</span>
-              <span className="text-[9px] bg-[#3B82F6]/15 text-[#3B82F6] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#3B82F6]/20">LIFO</span>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex-1 flex flex-col items-center bg-[#0F1720]/40 border border-[#4B5563]/10 rounded-lg p-3 max-h-[140px] overflow-y-auto">
-                {displayStack.length > 0 ? (
-                  <div className="flex flex-col-reverse gap-1.5 w-full max-w-[160px]">
-                    {displayStack.map((item, idx) => {
-                      const label = formatLabel(item);
-                      const isTop = idx === displayStack.length - 1;
-                      const isActive = label === activeNode && isTop;
-                      
-                      return (
-                        <div 
-                          key={idx} 
-                          className={`px-3 py-1.5 rounded font-mono text-[9px] font-bold text-center border shadow transition-all ${
-                            isActive
-                              ? 'bg-[#EF4444]/25 border-[#EF4444] text-[#EF4444] animate-pulse'
-                              : isTop
-                              ? 'bg-[#FD802E]/25 border-[#FD802E] text-[#FD802E]'
-                              : 'bg-[#1B2838] border-[#4B5563]/35 text-[#CBD5E1]'
-                          }`}
-                        >
-                          {isTop ? 'TOP ↓ ' : ''}{label}
-                        </div>
-                      );
-                    })}
+          <div className="grid grid-cols-2 gap-4 w-full">
+            <PriorityQueueVisualizer items={activeFrame.queue || []} />
+            <DistanceTable distances={activeFrame.distances || {}} prevDistances={(timeline[currentFrame - 1] || {}).distances || {}} />
+          </div>
+        );
+      case 'prim':
+        return <MSTVisualizer mstWeight={activeFrame.mstWeight ?? 0} candidateEdges={activeFrame.queue || []} />;
+      case 'kruskal':
+        return (
+          <div className="grid grid-cols-2 gap-4 w-full">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[8.5px] uppercase tracking-widest text-[#94A3B8] font-bold">Sorted Edges (Remaining)</span>
+              <div className="bg-[#0F1720]/45 border border-[#4B5563]/15 rounded-xl p-2 max-h-[110px] overflow-y-auto space-y-1 min-h-[70px] font-mono text-[8.5px] text-[#CBD5E1]">
+                {(activeFrame.queue || []).map((item, idx) => (
+                  <div key={idx} className="flex justify-between border-b border-[#4B5563]/10 pb-0.5 px-1">
+                    <span>{item.split(' ')[0]}</span>
+                    <span className="text-cyan-400 font-bold">{item.split(' (w=')[1]?.replace(')', '') || ''}</span>
                   </div>
-                ) : (
-                  <span className="text-[10px] text-[#94A3B8] italic my-4">Stack is empty.</span>
-                )}
-              </div>
-
-              <div className="w-36 flex flex-col justify-center text-[9.5px] font-mono text-[#94A3B8] space-y-2 border-l border-[#4B5563]/15 pl-4">
-                <div>Stack Size: <strong className="text-[#3B82F6]">{displayStack.length}</strong></div>
-                <div className="text-[8px] leading-relaxed">
-                  DFS runs recursively by pushing neighbors onto a LIFO stack to probe deeply before backtracking.
-                </div>
+                ))}
               </div>
             </div>
+            <UnionFindVisualizer parents={activeFrame.parentArray || {}} />
           </div>
         );
-      }
-
-      case 'dijkstra': {
-        const distances = activeFrame.distances || {};
-        const prevFrame = timeline[currentFrame - 1] || {};
-        const prevDistances = prevFrame.distances || {};
-
+      case 'floyd':
+        return <MatrixVisualizer matrix={activeFrame.matrix || activeFrame.distances || []} changedCell={activeFrame.changedCell || null} />;
+      case 'union_find':
+        return <UnionFindVisualizer parents={activeFrame.parentArray || {}} />;
+      case 'topological_sort':
         return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Dijkstra Distance Estimator</span>
-              <span className="text-[9px] bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-amber-500/20">RELAX</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Min Priority Queue</span>
-                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
-                  {rawQueue.length > 0 ? (
-                    rawQueue.map((item, idx) => (
-                      <div key={idx} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1">
-                        <span className="text-[#FD802E]">{item.split(' ')[0]}</span>
-                        <span className="text-cyan-400 font-bold">{item.split(' (d=')[1]?.replace(')', '') || '0'}</span>
-                      </div>
-                    ))
-                  ) : <span className="text-[#94A3B8] italic block text-center py-4">PQ is empty</span>}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Distance Estimates Table</span>
-                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
-                  {Object.entries(distances).map(([nodeId, val]) => {
-                    const prevVal = prevDistances[nodeId];
-                    const wasRelaxed = prevVal !== undefined && prevVal !== val;
-                    return (
-                      <div key={nodeId} className={`flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 rounded ${wasRelaxed ? 'bg-[#22C55E]/15 border border-[#22C55E]/30' : ''}`}>
-                        <span className="text-[#CBD5E1]">{nodeId}</span>
-                        <span className="font-bold text-cyan-400">
-                          {wasRelaxed ? `${prevVal} → ${val}` : val}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="grid grid-cols-2 gap-4 w-full font-mono text-[9px]">
+            <QueueVisualizer items={activeFrame.queue || []} activeNode={activeFrame.currentNode} />
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[8.5px] uppercase tracking-widest text-[#94A3B8] font-bold">In-Degrees Table</span>
+              <div className="bg-[#0F1720]/45 border border-[#4B5563]/15 rounded-xl p-2.5 max-h-[110px] overflow-y-auto space-y-1 min-h-[70px] text-[#CBD5E1]">
+                {Object.entries(activeFrame.inDegrees || {}).map(([nodeId, val]) => (
+                  <div key={nodeId} className="flex justify-between border-b border-[#4B5563]/10 pb-0.5 px-1">
+                    <span>{nodeId}</span>
+                    <span className="font-bold text-[#FD802E]">{val}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         );
-      }
-
-      case 'prim': {
-        const mstWeight = activeFrame.mstWeight ?? 0;
+      case 'knapsack':
+        return <KnapsackVisualizer capacity={activeFrame.capacity ?? 10} used={activeFrame.usedWeight ?? 0} items={activeFrame.packedItems || []} />;
+      case 'branch_bound':
+      case 'tsp':
         return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Prim's Candidate Edges & MST</span>
-              <span className="text-[9px] bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-indigo-500/20">MST</span>
+          <div className="grid grid-cols-2 gap-4 w-full font-mono text-[9px]">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-[8.5px] uppercase tracking-widest text-[#94A3B8] font-bold">Active Branch Search Space</span>
+              <div className="bg-[#0F1720]/45 border border-[#4B5563]/15 rounded-xl p-2.5 max-h-[110px] overflow-y-auto space-y-1.5 min-h-[70px] text-[#CBD5E1]">
+                <div>Current Route: <strong className="text-[#FD802E]">{activeFrame.currentRoute ? JSON.stringify(activeFrame.currentRoute) : '[]'}</strong></div>
+                <div>Best Tour Cost: <strong className="text-emerald-400">{activeFrame.bestCost ?? '─'}</strong></div>
+              </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Candidate Edges Queue</span>
-                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1.5 font-mono text-[9px]">
-                  {rawQueue.length > 0 ? (
-                    rawQueue.map((item, idx) => {
-                      const isMin = idx === 0;
-                      return (
-                        <div key={idx} className={`flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 rounded ${isMin ? 'bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] font-bold' : 'text-[#CBD5E1]'}`}>
-                          <span>{item.split(' ')[0]}</span>
-                          <span className="text-cyan-400">{item.split(' (w=')[1]?.replace(')', '') || ''}</span>
-                        </div>
-                      );
-                    })
-                  ) : <span className="text-[#94A3B8] italic block text-center py-4">No candidates</span>}
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-center gap-3 pl-4 border-l border-[#4B5563]/15 text-[10px] font-mono text-[#94A3B8]">
-                <div>Current MST Weight: <strong className="text-[#22C55E]">{mstWeight}</strong></div>
-                <div className="text-[8.5px] leading-relaxed">Adjacent candidates are sorted. At each step, Prim's selects the minimum weight candidate edge to grow the tree.</div>
-              </div>
+            <div className="flex flex-col justify-center text-[10px] text-[#94A3B8] pl-4 border-l border-[#4B5563]/15">
+              <div>Bound Estimate: <strong className="text-cyan-400">{activeFrame.bound ?? 'None'}</strong></div>
+              <div className="text-[7.5px] leading-relaxed mt-1">Prunes decision branches that exceed the current optimal path bound.</div>
             </div>
           </div>
         );
-      }
-
-      case 'kruskal': {
-        const mstWeight = activeFrame.mstWeight ?? 0;
-        const parents = activeFrame.parentArray || {};
+      case 'merge_sort':
+      case 'quick_sort':
         return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Kruskal Sorted Edges & Union-Find</span>
-              <span className="text-[9px] bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-indigo-500/20">MST</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Sorted Edges (Remaining)</span>
-                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
-                  {rawQueue.length > 0 ? (
-                    rawQueue.map((item, idx) => (
-                      <div key={idx} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 text-[#CBD5E1]">
-                        <span>{item.split(' ')[0]}</span>
-                        <span className="text-cyan-400">{item.split(' (w=')[1]?.replace(')', '') || ''}</span>
-                      </div>
-                    ))
-                  ) : <span className="text-[#94A3B8] italic block text-center py-4">No sorted edges left</span>}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">
-                  <span>Union-Find Representatives</span>
-                  <span className="text-amber-500">MST Cost: {mstWeight}</span>
-                </div>
-                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
-                  {Object.entries(parents).map(([nodeId, parentId]) => (
-                    <div key={nodeId} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 text-[#CBD5E1]">
-                      <span>{nodeId}</span>
-                      <span>→ <strong className="text-amber-500">{parentId}</strong></span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <ArrayVisualizer 
+            array={activeFrame.array || activeFrame.state || []} 
+            activeIndices={activeFrame.activeIndices || []} 
+            pivotIndex={activeFrame.pivotIndex ?? -1} 
+          />
         );
-      }
-
-      default: {
-        return (
-          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
-            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Active Data Structure</span>
-              <span className="text-[9px] bg-[#3B82F6]/15 text-[#3B82F6] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#3B82F6]/20">DATA</span>
-            </div>
-            
-            <div className="flex items-center gap-2 overflow-x-auto min-h-[32px] py-1 border border-[#4B5563]/10 bg-[#0F1720]/40 rounded-lg px-3">
-              {rawQueue.length > 0 ? (
-                rawQueue.map((item, idx) => (
-                  <span key={idx} className="px-2.5 py-1 bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E] rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0">
-                    {formatLabel(item)}
-                  </span>
-                ))
-              ) : (
-                <span className="text-[10px] text-[#94A3B8] italic">No active structural states.</span>
-              )}
-            </div>
-          </div>
-        );
-      }
+      case 'nqueens':
+        return <StackVisualizer items={activeFrame.stack || []} activeNode={activeFrame.currentNode} />;
+      default:
+        return <QueueVisualizer items={activeFrame.queue || []} activeNode={activeFrame.currentNode} />;
     }
   };
 
@@ -873,224 +841,292 @@ export default function LearningMode() {
       </div>
 
       {/* Main Learning Content Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Column: Visualizer player canvas */}
-        <div className="flex-1 flex flex-col overflow-hidden relative border-r border-[#4B5563]/20">
-          {/* Simulation Header controls */}
-          {timeline.length > 0 && (
-            <div className="h-12 bg-[#233D4C]/60 backdrop-blur-md border-b border-[#4B5563]/20 flex items-center justify-between px-6 z-10 flex-shrink-0 select-none">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={handlePrevStep}
-                  disabled={currentFrame === 0}
-                  className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#FD802E] disabled:opacity-30 transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                
-                <button
-                  onClick={handlePlayPause}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-[#1B2838] border border-[#4B5563]/25 text-[#F8FAFC] hover:text-[#FD802E] rounded-lg transition-colors font-semibold"
-                >
-                  {isPlaying ? <Pause className="h-3.5 w-3.5 text-[#FD802E]" /> : <Play className="h-3.5 w-3.5 text-[#22C55E]" />}
-                  <span>{isPlaying ? 'Pause' : 'Play'}</span>
-                </button>
-
-                <button
-                  onClick={handleNextStep}
-                  disabled={currentFrame === timeline.length - 1}
-                  className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#FD802E] disabled:opacity-30 transition-colors"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-
-                <button
-                  onClick={handleReset}
-                  className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#EF4444] transition-colors"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Progress slider track */}
-              <div className="flex-1 mx-6 flex items-center gap-3">
-                <input
-                  type="range"
-                  min="0"
-                  max={timeline.length - 1}
-                  value={currentFrame}
-                  onChange={(e) => {
-                    setIsPlaying(false);
-                    setCurrentFrame(parseInt(e.target.value) || 0);
-                  }}
-                  className="flex-1 accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer appearance-none"
-                />
-                <span className="text-[10px] font-mono text-[#94A3B8]">{currentFrame + 1} / {timeline.length}</span>
-              </div>
-
-              {/* Speed controls */}
-              <div className="flex items-center gap-1.5 bg-[#1B2838] px-2.5 py-1 rounded-lg border border-[#4B5563]/25">
-                <span className="text-[9px] text-[#94A3B8] font-bold uppercase font-mono">Speed:</span>
-                <select
-                  value={speed}
-                  onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                  className="bg-transparent text-[10px] font-bold text-[#FD802E] outline-none cursor-pointer"
-                >
-                  {SPEED_LEVELS.map(lvl => (
-                    <option key={lvl.value} value={lvl.value} className="bg-[#233D4C] text-[#F8FAFC]">{lvl.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Render Active visualizer */}
-          <div className="flex-1 p-6 flex flex-col justify-between overflow-y-auto">
-            {renderVisualizerContent()}
+      <div className="flex-1 flex flex-col overflow-y-auto bg-[#0F1720] text-[#F8FAFC] p-6 space-y-4">
+        {/* Header banner */}
+        <div className="bg-[#1B2838] border border-[#4B5563]/30 rounded-xl p-4 flex justify-between items-center shadow-lg">
+          <div>
+            <h2 className="text-base font-black tracking-wider text-[#F8FAFC] flex items-center gap-2">
+              {activeAlgo.name}
+              <span className="text-[9px] uppercase font-mono tracking-widest bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded border border-[#FD802E]/30 font-bold">
+                {activeAlgo.category}
+              </span>
+            </h2>
+            <p className="text-[10px] text-[#94A3B8] mt-1">{activeAlgo.desc}</p>
           </div>
           
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <div>
+              <span className="text-[#94A3B8]">Status: </span>
+              <span className="text-[#22C55E] uppercase font-bold animate-pulse">{timeline.length > 0 ? 'ACTIVE' : 'IDLE'}</span>
+            </div>
+            <div>
+              <span className="text-[#94A3B8]">Step: </span>
+              <span className="text-[#FD802E] font-bold">{currentFrame + 1} / {timeline.length || 1}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Right Column: Complexities, Pseudocode, and What Happened step list */}
-        <div className="w-96 bg-[#233D4C]/35 h-full flex flex-col overflow-hidden p-6 space-y-6 flex-shrink-0 select-none text-xs border-l border-[#4B5563]/30">
-          
-          {/* Tabs for Study Guide vs Live History */}
-          <div className="flex gap-2 border-b border-[#4B5563]/15 pb-2 flex-shrink-0">
-            <button
-              onClick={() => setRightPanelTab('guide')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
-                rightPanelTab === 'guide'
-                  ? 'bg-[#FD802E] text-[#0F1720]'
-                  : 'bg-[#1B2838] text-[#94A3B8] hover:text-[#F8FAFC]'
-              }`}
-            >
-              Study Guide
-            </button>
-            <button
-              onClick={() => setRightPanelTab('history')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
-                rightPanelTab === 'history'
-                  ? 'bg-[#FD802E] text-[#0F1720]'
-                  : 'bg-[#1B2838] text-[#94A3B8] hover:text-[#F8FAFC]'
-              }`}
-            >
-              What Happened?
-            </button>
+        {/* Main Board Grid */}
+        <div className="grid grid-cols-3 gap-4 flex-1 min-h-[500px]">
+          {/* Col 1 & 2: Main visualization area (Graph/Array/Chessboard + Data Structure) */}
+          <div className="col-span-2 flex flex-col space-y-4">
+            {/* Top half: The actual network or sort array */}
+            <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl h-[340px] relative overflow-hidden flex flex-col">
+              <div className="bg-[#111C2A] px-3 py-1.5 border-b border-[#4B5563]/25 text-[9px] font-bold text-[#FD802E] uppercase tracking-wider">
+                {activeAlgo.isGraph ? 'Live Network Topology Graph' : 'Primary Visual State'}
+              </div>
+              <div className="flex-1 relative min-h-0">
+                {loading ? (
+                  <div className="w-full h-full flex items-center justify-center text-[#94A3B8] italic font-mono text-[10px]">
+                    Computing algorithm state space...
+                  </div>
+                ) : errorMsg ? (
+                  <div className="w-full h-full flex flex-col justify-center items-center text-center p-6 text-rose-400 font-mono text-[10px]">
+                    <div>Simulation calculation failed:</div>
+                    <div className="mt-1 font-bold">{errorMsg}</div>
+                  </div>
+                ) : activeAlgo.isGraph ? (
+                  <>
+                    {/* Status Indicators Legend */}
+                    <div className="absolute top-3 right-3 z-10 bg-[#0F1720]/90 border border-[#4B5563]/30 px-2.5 py-1.5 rounded-lg flex flex-col gap-1 font-sans text-[7.5px] text-[#CBD5E1] shadow-lg">
+                      <span className="font-bold uppercase tracking-wider text-[#94A3B8] border-b border-[#4B5563]/10 pb-0.5 mb-0.5">Status Legend</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FD802E] animate-pulse"></span>
+                        <span>Active Node</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></span>
+                        <span>Infected / Visited</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]"></span>
+                        <span>Recovered / Secured</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded border border-dashed border-[#FD802E] bg-[#FD802E]/20"></span>
+                        <span>Queued / Discovered</span>
+                      </div>
+                    </div>
+
+                    <ReactFlow
+                      nodes={nodes}
+                      edges={edges}
+                      nodeTypes={nodeTypes}
+                      edgeTypes={edgeTypes}
+                      nodesDraggable={false}
+                      nodesConnectable={false}
+                      elementsSelectable={true}
+                      fitView
+                      minZoom={0.1}
+                      maxZoom={4}
+                    >
+                      <Background color="#4B5563" gap={16} size={1} />
+                      <Controls />
+                    </ReactFlow>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center p-6 overflow-y-auto">
+                    {renderNonGraphVisualizer()}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom half: Visual Data Structure */}
+            <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl flex-1 p-4 flex flex-col min-h-[160px] justify-between">
+              <div className="bg-[#111C2A] -mx-4 -mt-4 px-3 py-1.5 border-b border-[#4B5563]/25 text-[9px] font-bold text-[#FD802E] uppercase tracking-wider rounded-t-xl mb-3 flex justify-between items-center">
+                <span>Visual Data Structure Component</span>
+                <span className="text-[8px] bg-[#FD802E]/10 text-[#FD802E] px-1.5 rounded uppercase font-mono font-bold">{activeAlgo.id === 'dfs' ? 'LIFO' : 'FIFO'}</span>
+              </div>
+              <div className="flex-1 flex flex-col justify-center min-h-0">
+                {timeline.length > 0 ? renderVisualDataStructureComponent() : (
+                  <div className="text-[10px] text-[#94A3B8] italic text-center py-8">Initialize simulation to view internal structural states.</div>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-            {rightPanelTab === 'guide' ? (
-              <div className="flex-1 flex flex-col overflow-y-auto space-y-6">
-                {/* Description header */}
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wide border-b border-[#4B5563]/10 pb-2 flex justify-between">
-                    <span>{activeAlgo.name}</span>
-                    <span className="text-[9px] bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded uppercase font-bold tracking-wider font-mono">
-                      {activeAlgo.category}
-                    </span>
-                  </h3>
-                  <p className="text-[#CBD5E1] leading-relaxed text-sans">{activeAlgo.desc}</p>
-                </div>
+          {/* Col 3: Details area (Journey, Pseudocode, Replay List, Explain Panel) */}
+          <div className="flex flex-col space-y-4">
+            {/* Traversal Journey Panel */}
+            <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl h-[120px] p-4 flex flex-col min-h-0">
+              <div className="bg-[#111C2A] -mx-4 -mt-4 px-3 py-1.5 border-b border-[#4B5563]/25 text-[9px] font-bold text-[#FD802E] uppercase tracking-wider rounded-t-xl mb-3">
+                Traversal Journey
+              </div>
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {timeline.length > 0 ? (
+                  <TraversalJourney timeline={timeline} currentFrame={currentFrame} />
+                ) : (
+                  <span className="text-[10px] text-[#94A3B8] italic">No active path.</span>
+                )}
+              </div>
+            </div>
 
-                {/* Complexity telemetry cards */}
-                <div className="grid grid-cols-2 gap-4 flex-shrink-0">
-                  <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
-                    <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Time Complexity</span>
-                    <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.time}</span>
-                  </div>
-                  <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
-                    <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Space Complexity</span>
-                    <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.space}</span>
-                  </div>
-                </div>
-
-                {/* Tracing details Log / Pseudocode card */}
-                {(activeAlgo.pseudo || (learning && learning.pseudoCode)) && (
-                  <div className="flex-1 flex flex-col overflow-hidden border border-[#4B5563]/25 rounded-lg bg-[#0F1720]/40 min-h-[220px]">
-                    <div className="bg-[#1B2838] px-3 py-1.5 border-b border-[#4B5563]/25 text-[10px] font-bold text-[#FD802E] uppercase tracking-wider flex items-center gap-1.5 font-sans flex-shrink-0">
-                      <Code2 className="h-4 w-4" />
-                      Algorithm Pseudocode
+            {/* Live Pseudocode Highlight Panel */}
+            <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl h-[180px] p-4 flex flex-col min-h-0">
+              <div className="bg-[#111C2A] -mx-4 -mt-4 px-3 py-1.5 border-b border-[#4B5563]/25 text-[9px] font-bold text-[#FD802E] uppercase tracking-wider rounded-t-xl mb-2 flex justify-between">
+                <span>Live Pseudocode Tracker</span>
+                <span className="text-[8px] text-[#94A3B8] font-mono">Line: {learning?.activeLine ?? 0}</span>
+              </div>
+              <div className="flex-1 overflow-y-auto font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal min-h-0">
+                {(activeAlgo.pseudo || learning?.pseudoCode || []).map((line, idx) => {
+                  const isActiveLine = learning && learning.activeLine === idx;
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`px-1.5 py-0.5 rounded transition-all ${
+                        isActiveLine 
+                          ? 'bg-[#FD802E]/25 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' 
+                          : ''
+                      }`}
+                    >
+                      {line}
                     </div>
-                    <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
-                      {(activeAlgo.pseudo || learning.pseudoCode).map((line, idx) => {
-                        const isActiveLine = learning && learning.activeLine === idx;
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* "Why?" Explanatory Panel & What Happened step list */}
+            <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl flex-1 p-4 flex flex-col min-h-0 justify-between">
+              <div className="flex gap-2 border-b border-[#4B5563]/15 pb-2 mb-3 flex-shrink-0">
+                <button
+                  onClick={() => setRightPanelTab('history')}
+                  className={`px-2.5 py-1 rounded font-bold text-[9px] uppercase tracking-wider transition-colors ${
+                    rightPanelTab === 'history' ? 'bg-[#FD802E] text-[#0F1720]' : 'bg-[#111C2A] text-[#94A3B8]'
+                  }`}
+                >
+                  What Happened?
+                </button>
+                <button
+                  onClick={() => setRightPanelTab('why')}
+                  className={`px-2.5 py-1 rounded font-bold text-[9px] uppercase tracking-wider transition-colors ${
+                    rightPanelTab === 'why' ? 'bg-[#FD802E] text-[#0F1720]' : 'bg-[#111C2A] text-[#94A3B8]'
+                  }`}
+                >
+                  Active Step Why?
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {rightPanelTab === 'history' ? (
+                  <div className="space-y-2 pr-1">
+                    {timeline.length > 0 ? (
+                      timeline.map((frame, idx) => {
+                        const prevFrame = timeline[idx - 1] || {};
+                        const isActive = idx === currentFrame;
                         return (
-                          <div 
-                            key={idx} 
-                            className={`px-1.5 py-0.5 rounded transition-all ${
-                              isActiveLine 
-                                ? 'bg-[#FD802E]/25 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' 
-                                : ''
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setCurrentFrame(idx);
+                              setIsPlaying(false);
+                            }}
+                            className={`p-2.5 bg-[#0F1720]/50 border rounded-lg cursor-pointer transition-all ${
+                              isActive ? 'border-[#FD802E] bg-[#FD802E]/5 shadow-md' : 'border-[#4B5563]/15 hover:border-[#FD802E]/25'
                             }`}
                           >
-                            {line}
+                            <div className="flex justify-between items-center mb-1 text-[8.5px] font-mono text-[#FD802E]">
+                              <span>STEP {idx + 1}</span>
+                              {isActive && <span className="bg-[#FD802E]/20 px-1 rounded text-[7px] uppercase font-bold">Active</span>}
+                            </div>
+                            <p className="text-[9px] text-[#F8FAFC] leading-normal font-mono mb-1">{frame.action}</p>
+                            {renderHistoryCardSnapshot(frame, prevFrame)}
                           </div>
                         );
-                      })}
+                      })
+                    ) : (
+                      <div className="text-[#94A3B8] italic text-center py-8">No steps calculated.</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3 pr-1 text-[10px] leading-relaxed text-[#CBD5E1] font-mono">
+                    <div className="text-[#FD802E] font-bold uppercase tracking-wider">Step {currentFrame + 1} Explanation:</div>
+                    <div className="text-[#F8FAFC]">{activeFrame.action}</div>
+                    <div className="bg-[#111C2A] p-2.5 rounded-lg border border-[#4B5563]/15 text-[9.5px]">
+                      <strong className="text-[#22C55E] block mb-1">DAA Insight:</strong>
+                      {getExplanationWhy(activeAlgo.id, activeFrame, timeline[currentFrame - 1])}
                     </div>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0 space-y-3">
-                {/* Replay Controls & History Header */}
-                <div className="flex items-center justify-between border-b border-[#4B5563]/15 pb-2 flex-shrink-0">
-                  <span className="text-[10px] font-bold uppercase text-[#94A3B8]">Execution Replay</span>
-                  <button
-                    onClick={() => {
-                      setIsPlaying(true);
-                      setSimulationStatus('running');
-                    }}
-                    className="text-[9px] bg-[#22C55E]/15 text-[#22C55E] border border-[#22C55E]/30 px-2 py-0.5 rounded font-mono font-bold hover:bg-[#22C55E]/30 transition-all"
-                  >
-                    Return to Live Play
-                  </button>
-                </div>
-
-                {/* History cards list */}
-                <div className="flex-1 overflow-y-auto pr-1 space-y-3">
-                  {timeline.length > 0 ? (
-                    timeline.map((frame, idx) => {
-                      const prevFrame = timeline[idx - 1] || {};
-                      const isActive = idx === currentFrame;
-
-                      return (
-                        <div 
-                          key={idx}
-                          onClick={() => {
-                            setCurrentFrame(idx);
-                            setIsPlaying(false);
-                          }}
-                          className={`p-3 bg-[#1B2838]/60 border rounded-lg cursor-pointer transition-all ${
-                            isActive 
-                              ? 'border-[#FD802E] bg-[#FD802E]/10 shadow-[0_0_8px_rgba(253,128,46,0.15)]' 
-                              : 'border-[#4B5563]/25 hover:border-[#FD802E]/35'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[9px] font-bold text-[#FD802E] uppercase font-mono">Step {idx + 1}</span>
-                            {isActive && (
-                              <span className="text-[8px] bg-[#FD802E]/20 text-[#FD802E] px-1 rounded uppercase font-bold tracking-wider font-mono">Active</span>
-                            )}
-                          </div>
-                          
-                          <p className="text-[9.5px] text-[#F8FAFC] leading-relaxed mb-2 font-mono">{frame.action}</p>
-                          
-                          {/* Render step card before/after data structure snapshot */}
-                          {renderHistoryCardSnapshot(frame, prevFrame)}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-12 text-[#94A3B8] italic">No active timeline history to trace.</div>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
+        {/* Playback controls row */}
+        <div className="bg-[#1B2838] border border-[#4B5563]/30 rounded-xl p-3 flex items-center justify-between shadow-md flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePrevStep}
+              disabled={currentFrame === 0 || timeline.length === 0}
+              className="p-1.5 bg-[#111C2A] border border-[#4B5563]/30 rounded hover:bg-[#FD802E]/20 text-[#FD802E] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Previous Step"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={handlePlayPause}
+              disabled={timeline.length === 0}
+              className="p-2 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#0F1720] rounded-full transition-colors flex items-center justify-center font-bold disabled:opacity-30"
+              title={isPlaying ? 'Pause Simulation' : 'Play Simulation'}
+            >
+              {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
+            </button>
+
+            <button
+              onClick={handleNextStep}
+              disabled={currentFrame === timeline.length - 1 || timeline.length === 0}
+              className="p-1.5 bg-[#111C2A] border border-[#4B5563]/30 rounded hover:bg-[#FD802E]/20 text-[#FD802E] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              title="Next Step"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={handleReset}
+              disabled={timeline.length === 0}
+              className="p-1.5 bg-[#111C2A] border border-[#4B5563]/30 rounded hover:bg-[#FD802E]/20 text-[#FD802E] transition-colors flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider disabled:opacity-30"
+              title="Reset to frame 0"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </button>
+          </div>
+
+          {/* Progress slider track */}
+          {timeline.length > 0 && (
+            <div className="flex-1 mx-6 flex items-center gap-3">
+              <input
+                type="range"
+                min="0"
+                max={timeline.length - 1}
+                value={currentFrame}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  setCurrentFrame(parseInt(e.target.value) || 0);
+                }}
+                className="flex-1 accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer appearance-none"
+              />
+              <span className="text-[10px] font-mono text-[#94A3B8]">{currentFrame + 1} / {timeline.length}</span>
+            </div>
+          )}
+
+          {/* Speed controls */}
+          <div className="flex items-center gap-1.5 bg-[#111C2A] px-3 py-1.5 rounded-lg border border-[#4B5563]/25">
+            <span className="text-[9px] text-[#94A3B8] font-bold uppercase font-mono">Speed:</span>
+            <select
+              value={speed}
+              onChange={(e) => setSpeed(parseFloat(e.target.value))}
+              className="bg-transparent text-[10px] font-bold text-[#FD802E] outline-none cursor-pointer"
+            >
+              {SPEED_LEVELS.map(lvl => (
+                <option key={lvl.value} value={lvl.value} className="bg-[#233D4C] text-[#F8FAFC]">{lvl.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   );
