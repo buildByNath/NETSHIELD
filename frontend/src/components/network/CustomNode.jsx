@@ -66,6 +66,13 @@ export default function CustomNode({ data, selected }) {
           text: 'text-[#3B82F6]',
           glow: 'animate-pulse'
         };
+      case 'queued':
+        return {
+          border: 'border-dashed border-2 border-[#FD802E] shadow-[0_0_8px_rgba(253,128,46,0.3)]',
+          bg: 'bg-[#FD802E]/5',
+          text: 'text-[#FD802E]',
+          glow: 'animate-pulse'
+        };
       case 'protected':
         return {
           border: 'border-[#FACC15] shadow-[0_0_12px_rgba(250,204,21,0.5)]',

@@ -81,6 +81,7 @@ const SPEED_LEVELS = [
 
 export default function LearningMode() {
   const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'bfs'));
+  const [rightPanelTab, setRightPanelTab] = useState('history'); // 'guide' | 'history'
   
   // Simulation context hook
   const { 
@@ -144,12 +145,24 @@ export default function LearningMode() {
         if (activeNode === n.id) status = 'infected';
         
         const isStart = n.id === startNodeId;
+        const isQueued = (
+          (frame.queue && JSON.stringify(frame.queue).includes(n.id)) ||
+          (frame.stack && JSON.stringify(frame.stack).includes(n.id))
+        ) && n.id !== activeNode;
+
+        let finalStatus = status;
+        if (isQueued && status !== 'infected') {
+          finalStatus = 'queued';
+        } else if (status === 'healthy' && isStart) {
+          finalStatus = 'protected';
+        }
+
         return {
           ...n,
           selected: activeNode === n.id,
           data: {
             ...n.data,
-            status: status === 'infected' ? 'infected' : (isStart ? 'protected' : 'healthy')
+            status: finalStatus
           }
         };
       }));
@@ -178,8 +191,17 @@ export default function LearningMode() {
         
         const isSrc = n.id === startNodeId;
         const isDst = n.id === targetNodeId;
-        if ((isSrc || isDst) && status !== 'recovered') {
-          status = 'protected'; // gold highlight
+        
+        const isQueued = (
+          (frame.queue && JSON.stringify(frame.queue).includes(n.id)) ||
+          (frame.stack && JSON.stringify(frame.stack).includes(n.id))
+        ) && n.id !== activeNode;
+
+        let finalStatus = status;
+        if (isQueued && status !== 'recovered') {
+          finalStatus = 'queued';
+        } else if ((isSrc || isDst) && status !== 'recovered') {
+          finalStatus = 'protected'; // gold highlight
         }
         
         return {
@@ -187,7 +209,7 @@ export default function LearningMode() {
           selected: activeNode === n.id,
           data: {
             ...n.data,
-            status
+            status: finalStatus
           }
         };
       }));
@@ -334,7 +356,359 @@ export default function LearningMode() {
 
   const activeFrame = timeline[currentFrame] || { action: 'Simulator ready.' };
 
-  // Render Visualizer panels based on algorithm type
+  const renderHistoryCardSnapshot = (frame, prevFrame) => {
+    const qBefore = prevFrame.queue || [];
+    const qAfter = frame.queue || [];
+    const sBefore = prevFrame.stack || [];
+    const sAfter = frame.stack || [];
+
+    const formatShortList = (list) => {
+      if (list.length === 0) return '[ Empty ]';
+      const items = list.map(item => typeof item === 'string' ? item.split(' ')[0] : (item.node || item.id || ''));
+      return `[${items.slice(0, 3).join(', ')}${items.length > 3 ? '...' : ''}]`;
+    };
+
+    if (activeAlgo.id === 'bfs') {
+      return (
+        <div className="grid grid-cols-2 gap-2 text-[8px] font-mono border-t border-[#4B5563]/10 pt-1.5 mt-1.5">
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">QUEUE BEFORE:</span>
+            <span className="text-[#CBD5E1] block truncate">{formatShortList(qBefore)}</span>
+          </div>
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">QUEUE AFTER:</span>
+            <span className="text-[#FD802E] block truncate font-bold">{formatShortList(qAfter)}</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeAlgo.id === 'dfs') {
+      return (
+        <div className="grid grid-cols-2 gap-2 text-[8px] font-mono border-t border-[#4B5563]/10 pt-1.5 mt-1.5">
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">STACK BEFORE:</span>
+            <span className="text-[#CBD5E1] block truncate">{formatShortList(sBefore)}</span>
+          </div>
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">STACK AFTER:</span>
+            <span className="text-[#FD802E] block truncate font-bold">{formatShortList(sAfter)}</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeAlgo.id === 'dijkstra' || activeAlgo.id === 'prim') {
+      return (
+        <div className="grid grid-cols-2 gap-2 text-[8px] font-mono border-t border-[#4B5563]/10 pt-1.5 mt-1.5">
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">PQ BEFORE:</span>
+            <span className="text-[#CBD5E1] block truncate">{formatShortList(qBefore)}</span>
+          </div>
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">PQ AFTER:</span>
+            <span className="text-[#FD802E] block truncate font-bold">{formatShortList(qAfter)}</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeAlgo.id === 'kruskal') {
+      const wBefore = prevFrame.mstWeight ?? 0;
+      const wAfter = frame.mstWeight ?? 0;
+      return (
+        <div className="grid grid-cols-2 gap-2 text-[8px] font-mono border-t border-[#4B5563]/10 pt-1.5 mt-1.5">
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">MST COST BEFORE:</span>
+            <span className="text-[#CBD5E1] block">{wBefore}</span>
+          </div>
+          <div>
+            <span className="text-[#94A3B8] block mb-0.5">MST COST AFTER:</span>
+            <span className="text-[#22C55E] block font-bold">{wAfter}</span>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderDataStructureVisualizer = () => {
+    if (!activeFrame) return null;
+    const rawQueue = activeFrame.queue || [];
+    const activeNode = activeFrame.currentNode;
+
+    const formatLabel = (item) => {
+      if (typeof item === 'string') return item;
+      return item.node || item.id || JSON.stringify(item);
+    };
+
+    switch (activeAlgo.id) {
+      case 'bfs': {
+        const displayQueue = [...rawQueue];
+        if (activeNode) {
+          const rawQueueLabels = rawQueue.map(item => formatLabel(item));
+          if (!rawQueueLabels.includes(activeNode)) {
+            displayQueue.unshift(activeNode);
+          }
+        }
+        const maxQ = timeline.reduce((max, f) => Math.max(max, (f.queue || []).length), 0) + 1;
+
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">FIFO Queue (Breadth-First Search)</span>
+              <span className="text-[9px] bg-[#22C55E]/15 text-[#22C55E] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#22C55E]/20">FIFO</span>
+            </div>
+            
+            <div className="flex items-center justify-between text-[9px] text-[#94A3B8] px-1 font-mono">
+              <span className="flex items-center gap-1 font-bold text-emerald-400">FRONT ↓</span>
+              <span className="flex items-center gap-1 font-bold text-amber-500">↑ REAR</span>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto min-h-[44px] py-1 border border-[#4B5563]/10 bg-[#0F1720]/40 rounded-lg px-3">
+              {displayQueue.length > 0 ? (
+                displayQueue.map((item, idx) => {
+                  const label = formatLabel(item);
+                  const isActive = label === activeNode;
+                  return (
+                    <div key={idx} className="flex items-center gap-1.5 flex-shrink-0">
+                      <span 
+                        className={`px-3 py-1.5 rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0 transition-all ${
+                          isActive 
+                            ? 'bg-[#EF4444]/25 border-2 border-[#EF4444] text-[#EF4444] animate-pulse' 
+                            : 'bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E]'
+                        }`}
+                      >
+                        {label} {isActive && ' (Active)'}
+                      </span>
+                      {idx < displayQueue.length - 1 && (
+                        <span className="text-[#4B5563] text-[10px] font-bold">→</span>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <span className="text-[10px] text-[#94A3B8] italic">Queue is empty.</span>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center text-[9px] text-[#94A3B8] font-mono border-t border-[#4B5563]/10 pt-2">
+              <span>Queue Size: <strong className="text-[#22C55E]">{displayQueue.length}</strong></span>
+              <span>Max Queue Size: <strong className="text-[#FD802E]">{maxQ}</strong></span>
+            </div>
+          </div>
+        );
+      }
+
+      case 'dfs': {
+        const displayStack = [...(activeFrame.stack || [])];
+        if (activeNode && !displayStack.includes(activeNode)) {
+          displayStack.push(activeNode);
+        }
+
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">LIFO Stack (Depth-First Search)</span>
+              <span className="text-[9px] bg-[#3B82F6]/15 text-[#3B82F6] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#3B82F6]/20">LIFO</span>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex-1 flex flex-col items-center bg-[#0F1720]/40 border border-[#4B5563]/10 rounded-lg p-3 max-h-[140px] overflow-y-auto">
+                {displayStack.length > 0 ? (
+                  <div className="flex flex-col-reverse gap-1.5 w-full max-w-[160px]">
+                    {displayStack.map((item, idx) => {
+                      const label = formatLabel(item);
+                      const isTop = idx === displayStack.length - 1;
+                      const isActive = label === activeNode && isTop;
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`px-3 py-1.5 rounded font-mono text-[9px] font-bold text-center border shadow transition-all ${
+                            isActive
+                              ? 'bg-[#EF4444]/25 border-[#EF4444] text-[#EF4444] animate-pulse'
+                              : isTop
+                              ? 'bg-[#FD802E]/25 border-[#FD802E] text-[#FD802E]'
+                              : 'bg-[#1B2838] border-[#4B5563]/35 text-[#CBD5E1]'
+                          }`}
+                        >
+                          {isTop ? 'TOP ↓ ' : ''}{label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-[#94A3B8] italic my-4">Stack is empty.</span>
+                )}
+              </div>
+
+              <div className="w-36 flex flex-col justify-center text-[9.5px] font-mono text-[#94A3B8] space-y-2 border-l border-[#4B5563]/15 pl-4">
+                <div>Stack Size: <strong className="text-[#3B82F6]">{displayStack.length}</strong></div>
+                <div className="text-[8px] leading-relaxed">
+                  DFS runs recursively by pushing neighbors onto a LIFO stack to probe deeply before backtracking.
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      case 'dijkstra': {
+        const distances = activeFrame.distances || {};
+        const prevFrame = timeline[currentFrame - 1] || {};
+        const prevDistances = prevFrame.distances || {};
+
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Dijkstra Distance Estimator</span>
+              <span className="text-[9px] bg-amber-500/15 text-amber-500 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-amber-500/20">RELAX</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Min Priority Queue</span>
+                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
+                  {rawQueue.length > 0 ? (
+                    rawQueue.map((item, idx) => (
+                      <div key={idx} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1">
+                        <span className="text-[#FD802E]">{item.split(' ')[0]}</span>
+                        <span className="text-cyan-400 font-bold">{item.split(' (d=')[1]?.replace(')', '') || '0'}</span>
+                      </div>
+                    ))
+                  ) : <span className="text-[#94A3B8] italic block text-center py-4">PQ is empty</span>}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Distance Estimates Table</span>
+                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
+                  {Object.entries(distances).map(([nodeId, val]) => {
+                    const prevVal = prevDistances[nodeId];
+                    const wasRelaxed = prevVal !== undefined && prevVal !== val;
+                    return (
+                      <div key={nodeId} className={`flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 rounded ${wasRelaxed ? 'bg-[#22C55E]/15 border border-[#22C55E]/30' : ''}`}>
+                        <span className="text-[#CBD5E1]">{nodeId}</span>
+                        <span className="font-bold text-cyan-400">
+                          {wasRelaxed ? `${prevVal} → ${val}` : val}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      case 'prim': {
+        const mstWeight = activeFrame.mstWeight ?? 0;
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Prim's Candidate Edges & MST</span>
+              <span className="text-[9px] bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-indigo-500/20">MST</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Candidate Edges Queue</span>
+                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1.5 font-mono text-[9px]">
+                  {rawQueue.length > 0 ? (
+                    rawQueue.map((item, idx) => {
+                      const isMin = idx === 0;
+                      return (
+                        <div key={idx} className={`flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 rounded ${isMin ? 'bg-[#22C55E]/15 border border-[#22C55E]/30 text-[#22C55E] font-bold' : 'text-[#CBD5E1]'}`}>
+                          <span>{item.split(' ')[0]}</span>
+                          <span className="text-cyan-400">{item.split(' (w=')[1]?.replace(')', '') || ''}</span>
+                        </div>
+                      );
+                    })
+                  ) : <span className="text-[#94A3B8] italic block text-center py-4">No candidates</span>}
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-center gap-3 pl-4 border-l border-[#4B5563]/15 text-[10px] font-mono text-[#94A3B8]">
+                <div>Current MST Weight: <strong className="text-[#22C55E]">{mstWeight}</strong></div>
+                <div className="text-[8.5px] leading-relaxed">Adjacent candidates are sorted. At each step, Prim's selects the minimum weight candidate edge to grow the tree.</div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      case 'kruskal': {
+        const mstWeight = activeFrame.mstWeight ?? 0;
+        const parents = activeFrame.parentArray || {};
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Kruskal Sorted Edges & Union-Find</span>
+              <span className="text-[9px] bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-indigo-500/20">MST</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">Sorted Edges (Remaining)</span>
+                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
+                  {rawQueue.length > 0 ? (
+                    rawQueue.map((item, idx) => (
+                      <div key={idx} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 text-[#CBD5E1]">
+                        <span>{item.split(' ')[0]}</span>
+                        <span className="text-cyan-400">{item.split(' (w=')[1]?.replace(')', '') || ''}</span>
+                      </div>
+                    ))
+                  ) : <span className="text-[#94A3B8] italic block text-center py-4">No sorted edges left</span>}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">
+                  <span>Union-Find Representatives</span>
+                  <span className="text-amber-500">MST Cost: {mstWeight}</span>
+                </div>
+                <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-2 max-h-[110px] overflow-y-auto space-y-1 font-mono text-[9px]">
+                  {Object.entries(parents).map(([nodeId, parentId]) => (
+                    <div key={nodeId} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5 px-1 text-[#CBD5E1]">
+                      <span>{nodeId}</span>
+                      <span>→ <strong className="text-amber-500">{parentId}</strong></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      default: {
+        return (
+          <div className="p-4 bg-[#1B2838]/80 border border-[#4B5563]/30 rounded-xl flex flex-col gap-3 font-sans select-none animate-in fade-in duration-200">
+            <div className="flex justify-between items-center border-b border-[#4B5563]/25 pb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#94A3B8] font-black">Active Data Structure</span>
+              <span className="text-[9px] bg-[#3B82F6]/15 text-[#3B82F6] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border border-[#3B82F6]/20">DATA</span>
+            </div>
+            
+            <div className="flex items-center gap-2 overflow-x-auto min-h-[32px] py-1 border border-[#4B5563]/10 bg-[#0F1720]/40 rounded-lg px-3">
+              {rawQueue.length > 0 ? (
+                rawQueue.map((item, idx) => (
+                  <span key={idx} className="px-2.5 py-1 bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E] rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0">
+                    {formatLabel(item)}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[10px] text-[#94A3B8] italic">No active structural states.</span>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+  };
+
   const renderVisualizerContent = () => {
     if (activeAlgo.isGraph) {
       if (originalNodes.length === 0) {
@@ -357,8 +731,29 @@ export default function LearningMode() {
 
       return (
         <div className="flex-1 flex flex-col justify-between h-full space-y-4 relative">
-          {/* React Flow Canvas */}
-          <div className="flex-1 min-h-[300px] border border-[#4B5563]/25 rounded-xl overflow-hidden bg-[#0F1720]">
+          {/* React Flow Canvas Wrapper */}
+          <div className="flex-1 min-h-[300px] border border-[#4B5563]/25 rounded-xl overflow-hidden bg-[#0F1720] relative">
+            {/* Status Indicators Legend */}
+            <div className="absolute top-4 right-4 z-10 bg-[#0F1720]/90 border border-[#4B5563]/30 px-3 py-2 rounded-lg flex flex-col gap-1.5 font-sans text-[8px] text-[#CBD5E1] shadow-lg">
+              <span className="font-bold uppercase tracking-wider text-[#94A3B8] border-b border-[#4B5563]/10 pb-0.5 mb-0.5">Status Legend</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FD802E] animate-pulse"></span>
+                <span>🟠 Active Node</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#EF4444]"></span>
+                <span>🔴 Infected / Visited</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#3B82F6]"></span>
+                <span>🔵 Recovered / Secured</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded border border-dashed border-[#FD802E] bg-[#FD802E]/20"></span>
+                <span>🟡 Queued / Discovered</span>
+              </div>
+            </div>
+
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -377,86 +772,41 @@ export default function LearningMode() {
           </div>
           
           {/* Data Structure Visualizer Trace */}
-          {timeline.length > 0 && (() => {
-            const rawQueue = activeFrame.queue || [];
-            const displayQueue = [...rawQueue];
-            const activeNode = activeFrame.currentNode;
-            if (activeNode) {
-              const rawQueueLabels = rawQueue.map(item => 
-                typeof item === 'string' 
-                  ? item 
-                  : (item.node || item.id || (item.vertex !== undefined ? item.vertex : ''))
-              );
-              if (!rawQueueLabels.includes(activeNode)) {
-                if (activeAlgo.id === 'dfs') {
-                  displayQueue.push(activeNode);
-                } else {
-                  displayQueue.unshift(activeNode);
-                }
-              }
-            }
+          {timeline.length > 0 && renderDataStructureVisualizer()}
 
-            return (
-              <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex flex-col gap-2 font-sans select-none">
-                <div className="flex items-center justify-between border-b border-[#4B5563]/15 pb-1">
-                  <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold">
-                    {activeAlgo.id === 'dfs' ? 'LIFO Stack Trace' : activeAlgo.id === 'dijkstra' || activeAlgo.id === 'prim' ? 'Priority Queue Trace' : 'FIFO Queue Trace'}
-                  </span>
-                  <span className="text-[8px] bg-[#3B82F6]/20 text-[#3B82F6] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
-                    {activeAlgo.id === 'dfs' ? 'LIFO' : 'FIFO'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 overflow-x-auto min-h-[32px] py-1">
-                  {displayQueue.length > 0 ? (
-                    displayQueue.map((item, idx) => {
-                      const label = typeof item === 'string' 
-                        ? item 
-                        : (item.node || item.id || (item.vertex !== undefined ? item.vertex : JSON.stringify(item)));
-                      const isActive = label === activeNode;
-                      return (
-                        <div key={idx} className="flex items-center gap-1.5 flex-shrink-0">
-                          <span 
-                            className={`px-2.5 py-1 rounded font-mono text-[9px] font-bold shadow-md flex-shrink-0 transition-all ${
-                              isActive 
-                                ? 'bg-[#EF4444]/20 border-2 border-[#EF4444] text-[#EF4444] animate-pulse' 
-                                : 'bg-[#1B2838] border border-[#FD802E]/35 text-[#FD802E]'
-                            }`}
-                            title={isActive ? 'Currently Dequeued / Processing Neighbor Devices' : 'Waiting in Queue'}
-                          >
-                            {label} {isActive && ' (Active)'}
-                          </span>
-                          {idx < displayQueue.length - 1 && (
-                            <span className="text-[#4B5563] text-[10px] font-bold">→</span>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span className="text-[10px] text-[#94A3B8] italic">No active elements in data structure.</span>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Variable trace logs */}
-          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex justify-between items-center font-sans text-[10px]">
-            <div className="flex gap-4">
-              <span className="text-[#94A3B8]">
-                Start Node: <strong className="text-[#FD802E]">{activeStartNode}</strong>
-              </span>
-              {activeAlgo.id === 'dijkstra' && (
-                <span className="text-[#94A3B8]">
-                  Target Node: <strong className="text-[#FD802E]">{activeTargetNode}</strong>
+          {/* Live DAA State Panel */}
+          {timeline.length > 0 && (
+            <div className="p-3.5 bg-[#0F1720]/80 border border-[#4B5563]/25 rounded-xl grid grid-cols-4 gap-4 font-sans text-[10px] items-center">
+              <div>
+                <span className="text-[#94A3B8] uppercase tracking-wider block text-[8px] mb-1 font-bold">Current Node</span>
+                <span className="text-[#F8FAFC] font-mono font-bold bg-[#FD802E]/10 border border-[#FD802E]/20 px-2.5 py-1 rounded text-[9.5px] block truncate">
+                  🟠 {activeFrame.currentNode || 'None / Finished'}
                 </span>
-              )}
+              </div>
+              
+              <div className="col-span-2">
+                <span className="text-[#94A3B8] uppercase tracking-wider block text-[8px] mb-1 font-bold">Current Action</span>
+                <span className="text-[#CBD5E1] font-mono font-bold text-[9.5px] leading-relaxed block truncate">
+                  {activeFrame.action}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[#94A3B8] uppercase tracking-wider block text-[8px] mb-1 font-bold">Next Expected Node</span>
+                <span className="text-[#FD802E] font-mono font-bold bg-[#FD802E]/10 border border-[#FD802E]/20 px-2.5 py-1 rounded text-[9.5px] block truncate">
+                  {(() => {
+                    if (activeAlgo.id === 'dfs') {
+                      const st = activeFrame.stack || [];
+                      return st.length > 0 ? st[st.length - 1] : 'None';
+                    }
+                    const q = activeFrame.queue || [];
+                    if (q.length === 0) return 'None';
+                    return typeof q[0] === 'string' ? q[0].split(' ')[0] : (q[0].node || q[0].id || 'None');
+                  })()}
+                </span>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <span className="bg-[#FD802E]/10 text-[#FD802E] px-2 py-0.5 rounded border border-[#FD802E]/20">
-                Steps: {timeline.length}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       );
     }
@@ -600,70 +950,145 @@ export default function LearningMode() {
             {renderVisualizerContent()}
           </div>
           
-          {/* Active step trace action log (bottom sheet log) */}
-          {timeline.length > 0 && (
-            <div className="h-16 bg-[#233D4C]/40 border-t border-[#4B5563]/25 px-6 flex items-center justify-between text-xs font-mono text-[#F8FAFC] flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#FD802E] animate-pulse"></span>
-                <span>{activeFrame.action}</span>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Right Column: Complexities and Pseudocode textbook panels */}
-        <div className="w-96 bg-[#233D4C]/35 h-full flex flex-col overflow-y-auto p-6 space-y-6 flex-shrink-0 select-none text-xs">
+        {/* Right Column: Complexities, Pseudocode, and What Happened step list */}
+        <div className="w-96 bg-[#233D4C]/35 h-full flex flex-col overflow-hidden p-6 space-y-6 flex-shrink-0 select-none text-xs border-l border-[#4B5563]/30">
           
-          {/* Description header */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wide border-b border-[#4B5563]/10 pb-2 flex justify-between">
-              <span>{activeAlgo.name}</span>
-              <span className="text-[9px] bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded uppercase font-bold tracking-wider font-mono">
-                {activeAlgo.category}
-              </span>
-            </h3>
-            <p className="text-[#CBD5E1] leading-relaxed text-sans">{activeAlgo.desc}</p>
+          {/* Tabs for Study Guide vs Live History */}
+          <div className="flex gap-2 border-b border-[#4B5563]/15 pb-2 flex-shrink-0">
+            <button
+              onClick={() => setRightPanelTab('guide')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
+                rightPanelTab === 'guide'
+                  ? 'bg-[#FD802E] text-[#0F1720]'
+                  : 'bg-[#1B2838] text-[#94A3B8] hover:text-[#F8FAFC]'
+              }`}
+            >
+              Study Guide
+            </button>
+            <button
+              onClick={() => setRightPanelTab('history')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
+                rightPanelTab === 'history'
+                  ? 'bg-[#FD802E] text-[#0F1720]'
+                  : 'bg-[#1B2838] text-[#94A3B8] hover:text-[#F8FAFC]'
+              }`}
+            >
+              What Happened?
+            </button>
           </div>
 
-          {/* Complexity telemetry cards */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
-              <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Time Complexity</span>
-              <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.time}</span>
-            </div>
-            <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
-              <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Space Complexity</span>
-              <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.space}</span>
-            </div>
-          </div>
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            {rightPanelTab === 'guide' ? (
+              <div className="flex-1 flex flex-col overflow-y-auto space-y-6">
+                {/* Description header */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wide border-b border-[#4B5563]/10 pb-2 flex justify-between">
+                    <span>{activeAlgo.name}</span>
+                    <span className="text-[9px] bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded uppercase font-bold tracking-wider font-mono">
+                      {activeAlgo.category}
+                    </span>
+                  </h3>
+                  <p className="text-[#CBD5E1] leading-relaxed text-sans">{activeAlgo.desc}</p>
+                </div>
 
-          {/* Tracing details Log / Pseudocode card */}
-          {(activeAlgo.pseudo || (learning && learning.pseudoCode)) && (
-            <div className="flex-1 flex flex-col overflow-hidden border border-[#4B5563]/25 rounded-lg bg-[#0F1720]/40">
-              <div className="bg-[#1B2838] px-3 py-1.5 border-b border-[#4B5563]/25 text-[10px] font-bold text-[#FD802E] uppercase tracking-wider flex items-center gap-1.5 font-sans flex-shrink-0">
-                <Code2 className="h-4 w-4" />
-                Algorithm Pseudocode
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
-                {(activeAlgo.pseudo || learning.pseudoCode).map((line, idx) => {
-                  const isActiveLine = learning && learning.activeLine === idx;
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`px-1.5 py-0.5 rounded transition-all ${
-                        isActiveLine 
-                          ? 'bg-[#FD802E]/25 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' 
-                          : ''
-                      }`}
-                    >
-                      {line}
+                {/* Complexity telemetry cards */}
+                <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                  <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
+                    <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Time Complexity</span>
+                    <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.time}</span>
+                  </div>
+                  <div className="bg-[#233D4C] p-3 rounded-lg border border-[#4B5563]/25 text-center">
+                    <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] block font-bold font-sans">Space Complexity</span>
+                    <span className="text-sm font-black text-[#22C55E] mt-1 block font-mono">{activeAlgo.complexity.space}</span>
+                  </div>
+                </div>
+
+                {/* Tracing details Log / Pseudocode card */}
+                {(activeAlgo.pseudo || (learning && learning.pseudoCode)) && (
+                  <div className="flex-1 flex flex-col overflow-hidden border border-[#4B5563]/25 rounded-lg bg-[#0F1720]/40 min-h-[220px]">
+                    <div className="bg-[#1B2838] px-3 py-1.5 border-b border-[#4B5563]/25 text-[10px] font-bold text-[#FD802E] uppercase tracking-wider flex items-center gap-1.5 font-sans flex-shrink-0">
+                      <Code2 className="h-4 w-4" />
+                      Algorithm Pseudocode
                     </div>
-                  );
-                })}
+                    <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
+                      {(activeAlgo.pseudo || learning.pseudoCode).map((line, idx) => {
+                        const isActiveLine = learning && learning.activeLine === idx;
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`px-1.5 py-0.5 rounded transition-all ${
+                              isActiveLine 
+                                ? 'bg-[#FD802E]/25 text-[#FD802E] font-bold border-l-2 border-[#FD802E]' 
+                                : ''
+                            }`}
+                          >
+                            {line}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0 space-y-3">
+                {/* Replay Controls & History Header */}
+                <div className="flex items-center justify-between border-b border-[#4B5563]/15 pb-2 flex-shrink-0">
+                  <span className="text-[10px] font-bold uppercase text-[#94A3B8]">Execution Replay</span>
+                  <button
+                    onClick={() => {
+                      setIsPlaying(true);
+                      setSimulationStatus('running');
+                    }}
+                    className="text-[9px] bg-[#22C55E]/15 text-[#22C55E] border border-[#22C55E]/30 px-2 py-0.5 rounded font-mono font-bold hover:bg-[#22C55E]/30 transition-all"
+                  >
+                    Return to Live Play
+                  </button>
+                </div>
 
+                {/* History cards list */}
+                <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+                  {timeline.length > 0 ? (
+                    timeline.map((frame, idx) => {
+                      const prevFrame = timeline[idx - 1] || {};
+                      const isActive = idx === currentFrame;
+
+                      return (
+                        <div 
+                          key={idx}
+                          onClick={() => {
+                            setCurrentFrame(idx);
+                            setIsPlaying(false);
+                          }}
+                          className={`p-3 bg-[#1B2838]/60 border rounded-lg cursor-pointer transition-all ${
+                            isActive 
+                              ? 'border-[#FD802E] bg-[#FD802E]/10 shadow-[0_0_8px_rgba(253,128,46,0.15)]' 
+                              : 'border-[#4B5563]/25 hover:border-[#FD802E]/35'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[9px] font-bold text-[#FD802E] uppercase font-mono">Step {idx + 1}</span>
+                            {isActive && (
+                              <span className="text-[8px] bg-[#FD802E]/20 text-[#FD802E] px-1 rounded uppercase font-bold tracking-wider font-mono">Active</span>
+                            )}
+                          </div>
+                          
+                          <p className="text-[9.5px] text-[#F8FAFC] leading-relaxed mb-2 font-mono">{frame.action}</p>
+                          
+                          {/* Render step card before/after data structure snapshot */}
+                          {renderHistoryCardSnapshot(frame, prevFrame)}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-12 text-[#94A3B8] italic">No active timeline history to trace.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
