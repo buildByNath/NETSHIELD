@@ -42,11 +42,10 @@ const edgeTypes = {
 };
 
 const SPEED_LEVELS = [
-  { value: 0.25, label: '0.25x (2s)' },
-  { value: 0.5, label: '0.5x (1s)' },
-  { value: 1.0, label: '1.0x (0.5s)' },
-  { value: 2.0, label: '2.0x (0.25s)' },
-  { value: 5.0, label: '5.0x (0.1s)' }
+  { value: 0.5, label: '0.5x (Teaching)' },
+  { value: 1.0, label: '1.0x (Normal)' },
+  { value: 2.0, label: '2.0x (Fast)' },
+  { value: 4.0, label: '4.0x (Demo)' }
 ];
 
 function RecoveryWorkspace() {
@@ -78,11 +77,30 @@ function RecoveryWorkspace() {
     resetPlayback,
     nextStep,
     prevStep,
-    infectedNodes
+    infectedNodes,
+    nodeSimStates,
+    stats,
+    handleNodeIsolate,
+    handleNodeRecover,
+    handleNodeRestore,
+    notification,
+    triggerNotification
   } = useSimulation();
 
   const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+
+  // Helper: run Dijkstra from recovery source to a specific infected device
+  const recoverDeviceWithDijkstra = (targetNodeId) => {
+    setSelectedAlgo('dijkstra');
+    setRecoveryTarget(targetNodeId);
+    const options = {
+      source: recoverySource,
+      destination: targetNodeId,
+      budget: parseFloat(budget)
+    };
+    triggerRecovery('dijkstra', options);
+  };
 
   // Auto-fill defaults when infectedNodes change
   useEffect(() => {
@@ -222,35 +240,63 @@ function RecoveryWorkspace() {
           {!['fractional_knapsack', 'branch_bound', 'connected_components', 'union_find', 'topological_sort', 'floyd', 'kruskal'].includes(selectedAlgo) && (
             <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-3 space-y-3">
               <div className="space-y-1">
-                <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Recovery Source (Clean Center)</label>
+                <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Recovery Source</label>
+
+                {/* Show currently-selected server with default indicator */}
+                {recoverySource && (
+                  <div className="flex items-center gap-1.5 bg-[#0F1720]/80 border border-[#3B82F6]/40 rounded-lg px-2 py-1.5 mb-1">
+                    <span className="text-[#3B82F6] text-[10px]">🛡️</span>
+                    <span className="font-mono text-[11px] text-[#F8FAFC] font-bold flex-1 truncate">{recoverySource}</span>
+                    <span className="text-[8px] bg-[#3B82F6]/20 text-[#3B82F6] px-1 rounded font-bold">DEFAULT</span>
+                  </div>
+                )}
+
                 <select
                   value={recoverySource}
                   onChange={(e) => setRecoverySource(e.target.value)}
                   disabled={mode === 'recovery' && simulationStatus !== 'idle'}
                   className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
                 >
-                  {originalNodes.filter(n => !infectedNodes.includes(n.id)).map(n => (
-                    <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
-                  ))}
-                  {/* Fallback to any node if everything is theoretically infected */}
-                  {originalNodes.filter(n => !infectedNodes.includes(n.id)).length === 0 && originalNodes.map(n => (
-                    <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
-                  ))}
+                  {/* Only healthy servers can be recovery sources */}
+                  {originalNodes
+                    .filter(n => {
+                      const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+                      return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
+                    })
+                    .map(n => (
+                      <option key={n.id} value={n.id}>{n.id} — {n.type}</option>
+                    ))}
+                  {/* Fallback: if no healthy servers, show all healthy nodes */}
+                  {originalNodes.filter(n => {
+                    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+                    return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
+                  }).length === 0 && originalNodes
+                    .filter(n => !infectedNodes.includes(n.id))
+                    .map(n => (
+                      <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                    ))
+                  }
                 </select>
               </div>
 
               {selectedAlgo === 'dijkstra' && (
                 <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
-                  <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Target Device to Recover</label>
+                  <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Target Infected Device</label>
                   <select
                     value={recoveryTarget}
                     onChange={(e) => setRecoveryTarget(e.target.value)}
                     disabled={mode === 'recovery' && simulationStatus !== 'idle'}
                     className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
                   >
-                    {originalNodes.filter(n => infectedNodes.includes(n.id) || n.id !== recoverySource).map(n => (
-                      <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
-                    ))}
+                    {/* Prefer infected nodes, but fall back to all non-source nodes */}
+                    {infectedNodes.length > 0
+                      ? infectedNodes.filter(id => id !== recoverySource).map(id => (
+                          <option key={id} value={id}>🔴 {id}</option>
+                        ))
+                      : originalNodes.filter(n => n.id !== recoverySource).map(n => (
+                          <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                        ))
+                    }
                   </select>
                 </div>
               )}
@@ -466,14 +512,94 @@ function RecoveryWorkspace() {
               </div>
             </div>
 
-            {/* General metrics */}
-            <div className="border-t border-[#4B5563]/20 pt-4 grid grid-cols-2 gap-3 text-center text-[10px] font-mono">
-              <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
-                <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Recovered</span>
-                <span className="text-[#3B82F6] font-black text-xs">{(activeFrameData.visited || []).length} / {nodes.length}</span>
+            {/* Infected Devices List */}
+            <div className="flex-1 flex flex-col overflow-hidden space-y-1.5 border-t border-[#4B5563]/20 pt-3 min-h-[120px]">
+              <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Infected Devices ({Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length})</label>
+              <div className="flex-1 bg-[#0F1720]/40 border border-[#4B5563]/25 rounded-lg p-2 overflow-y-auto space-y-1.5 scrollbar-thin">
+                {Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length > 0 ? (
+                  Object.keys(nodeSimStates)
+                    .filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising')
+                    .map(nodeId => {
+                      const nodeState = nodeSimStates[nodeId] || {};
+                      const isNodeIsolated = nodeState.isIsolated;
+                      return (
+                        <div 
+                          key={nodeId}
+                          onClick={() => {
+                            if (reactFlowInstance) {
+                              const nodeObj = nodes.find(n => n.id === nodeId);
+                              if (nodeObj) {
+                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.6, duration: 800 });
+                              }
+                            }
+                          }}
+                          className="flex items-center justify-between bg-[#1B2838] border border-[#EF4444]/30 hover:border-[#FD802E] p-1.5 rounded cursor-pointer transition-all"
+                        >
+                          <div className="font-mono text-[9px] min-w-0 flex-1 pr-1.5">
+                            <span className="text-[#F8FAFC] font-bold block truncate">{nodeId}</span>
+                            <span className="text-[8px] text-[#EF4444] block truncate">{isNodeIsolated ? '🛡️ ISOLATED' : '🔴 INFECTED'}</span>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // One-click: run Dijkstra from recovery server to this infected device
+                                recoverDeviceWithDijkstra(nodeId);
+                              }}
+                              title={`Run Dijkstra: ${recoverySource} → ${nodeId}`}
+                              className="px-1.5 py-0.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                            >
+                              Recover
+                            </button>
+                            {!isNodeIsolated ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleNodeIsolate(nodeId); }}
+                                className="px-1.5 py-0.5 bg-[#EF4444] hover:bg-[#F87171] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                              >
+                                Isolate
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleNodeRestore(nodeId); }}
+                                className="px-1.5 py-0.5 bg-[#22C55E] hover:bg-[#4ADE80] text-[#0F1720] text-[8px] font-bold rounded uppercase"
+                              >
+                                Link
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="text-[#94A3B8] italic text-center my-auto text-[9px] py-4">No active threat payloads</div>
+                )}
               </div>
-              <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
-                <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Step Index</span>
+            </div>
+
+            {/* General metrics */}
+            <div className="border-t border-[#4B5563]/20 pt-3 grid grid-cols-2 gap-2 text-center text-[9px] font-mono">
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Healthy</span>
+                <span className="text-emerald-400 font-black text-xs">{stats.healthy}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Infected</span>
+                <span className="text-rose-500 font-black text-xs">{stats.infected}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Isolated</span>
+                <span className="text-slate-300 font-black text-xs">{stats.isolated}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Blocked</span>
+                <span className="text-rose-400 font-black text-xs">{stats.blocked}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Saved</span>
+                <span className="text-cyan-400 font-black text-xs">{stats.saved}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Step</span>
                 <span className="text-[#F8FAFC] font-black text-xs">{currentFrame + 1} / {timeline.length}</span>
               </div>
             </div>
@@ -484,6 +610,13 @@ function RecoveryWorkspace() {
 
       {/* Main Canvas Area */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Auto-failover notification banner */}
+        {notification && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-[#1B2838]/95 backdrop-blur border border-[#3B82F6]/50 text-[#CBD5E1] font-mono text-[10px] px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+            <span className="text-[#3B82F6] text-sm">ℹ️</span>
+            <span>{notification}</span>
+          </div>
+        )}
         
         {/* Playback timeline slider overlay */}
         {mode === 'recovery' && timeline.length > 0 && (
@@ -572,8 +705,19 @@ function RecoveryWorkspace() {
             maxZoom={4}
           >
             <Background color="#4B5563" gap={16} size={1} />
-            <Controls />
+            <Controls className="react-flow__controls" />
           </ReactFlow>
+
+          {/* Legend overlay card */}
+          <div className="absolute bottom-4 left-4 bg-[#1B2838]/90 backdrop-blur border border-[#4B5563]/40 p-3 rounded-xl shadow-2xl z-20 font-sans text-[10px] text-[#CBD5E1] pointer-events-auto flex flex-col gap-1.5 min-w-[130px]">
+            <div className="text-white font-bold mb-0.5 border-b border-[#4B5563]/25 pb-1 uppercase tracking-wider text-[8px] text-[#FD802E]">Status Legend</div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#22C55E]/20 border border-[#22C55E]" /><span>🟢 Healthy</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#FD802E]/20 border border-[#FD802E]" /><span>🟠 Compromising</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#EF4444]/20 border border-[#EF4444]" /><span>🔴 Infected</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#3B82F6]/5 border border-[#3B82F6] border-dashed" /><span>🔵 Recovering</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#3B82F6]/20 border border-[#3B82F6]" /><span>🔵 Recovered</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#DFE3E6] border border-[#3B82F6]" /><span>🛡️ Isolated</span></div>
+          </div>
         </div>
 
         {/* Pseudocode and learning bottom sheet details */}

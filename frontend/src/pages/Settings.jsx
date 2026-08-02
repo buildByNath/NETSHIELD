@@ -1,16 +1,26 @@
 import React, { useState } from 'react';
 import { Settings as SettingsIcon, Save, Sliders, Shield } from 'lucide-react';
+import { useSimulation } from '../context/SimulationContext';
 
 /**
  * File: Settings.jsx
  * Author: Antigravity AI
- * Purpose: Baseline settings page placeholder for configuring Developer Mode and system limits.
+ * Purpose: Application settings page for configuring system limits and interactive simulation timing delays.
  */
 
 export default function Settings() {
   const [devMode, setDevMode] = useState(true);
   const [autosave, setAutosave] = useState(true);
   const [saveInterval, setSaveInterval] = useState(30);
+
+  const {
+    compromiseTime,
+    setCompromiseTime,
+    recoveryTime,
+    setRecoveryTime,
+    propagationDelay,
+    setPropagationDelay
+  } = useSimulation();
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0F1720] select-none text-sans text-xs">
@@ -95,6 +105,75 @@ export default function Settings() {
             </div>
           )}
         </div>
+
+        {/* Cyber Attack and Mitigation delay configuration section */}
+        <div className="border-t border-[#4B5563]/15 pt-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Sliders className="h-4 w-4 text-[#FD802E]" />
+            <h3 className="text-xs font-bold text-[#FD802E] uppercase tracking-wide">Attack & Recovery Delays (ms)</h3>
+          </div>
+          
+          {/* Link propagation delay */}
+          <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 space-y-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-[#F8FAFC] font-semibold block text-[11px]">Link Propagation Delay (Attack Pulse)</span>
+                <p className="text-[#94A3B8] text-[9.5px] leading-tight">Duration for attack pulse signals to move along connection wires.</p>
+              </div>
+              <span className="text-[#FD802E] font-mono font-bold text-xs">{propagationDelay}ms</span>
+            </div>
+            <input
+              type="range"
+              min="100"
+              max="2000"
+              step="50"
+              value={propagationDelay}
+              onChange={(e) => setPropagationDelay(parseInt(e.target.value))}
+              className="w-full accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Node compromise time */}
+          <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 space-y-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-[#F8FAFC] font-semibold block text-[11px]">Device Compromise Duration</span>
+                <p className="text-[#94A3B8] text-[9.5px] leading-tight">Time for an infected packet to compromise a device from reached to infected.</p>
+              </div>
+              <span className="text-[#FD802E] font-mono font-bold text-xs">{compromiseTime}ms</span>
+            </div>
+            <input
+              type="range"
+              min="500"
+              max="5000"
+              step="100"
+              value={compromiseTime}
+              onChange={(e) => setCompromiseTime(parseInt(e.target.value))}
+              className="w-full accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Node recovery time */}
+          <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 space-y-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-[#F8FAFC] font-semibold block text-[11px]">Device Recovery Duration</span>
+                <p className="text-[#94A3B8] text-[9.5px] leading-tight">Time required for recovery patches to clean and restore an infected host.</p>
+              </div>
+              <span className="text-[#FD802E] font-mono font-bold text-xs">{recoveryTime}ms</span>
+            </div>
+            <input
+              type="range"
+              min="100"
+              max="2000"
+              step="50"
+              value={recoveryTime}
+              onChange={(e) => setRecoveryTime(parseInt(e.target.value))}
+              className="w-full accent-[#FD802E] h-1 bg-[#0F1720] rounded-lg cursor-pointer"
+            />
+          </div>
+        </div>
+
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ const ALGORITHMS = [
     desc: 'Depth-First Search (DFS) drills down a path as deep as possible using a LIFO Stack before backtracking. It models a subnet port scanner.' },
   // Path Planners
   { id: 'dijkstra', name: 'Dijkstra Shortest Path', category: 'Path Planning', complexity: { time: 'O((V+E) log V)', space: 'O(V)' }, isGraph: true,
-    desc: "Calculates the minimum recovery path between two nodes on a weighted graph using a priority queue, relaxing distance estimates." },
+    desc: "NETSHIELD uses a designated clean server as the source vertex and the selected infected device as the destination. Dijkstra's algorithm calculates the minimum-cost path between them, visualized as the blue recovery route on the network." },
   { id: 'prim', name: "Prim's Algorithm MST", category: 'Spanning Trees', complexity: { time: 'O(E log V)', space: 'O(V)' }, isGraph: true,
     desc: "Grows a Minimum Spanning Tree (MST) node-by-node, adding the cheapest adjacent connection linking to unvisited vertices." },
   { id: 'kruskal', name: "Kruskal's Algorithm MST", category: 'Spanning Trees', complexity: { time: 'O(E log E)', space: 'O(V)' }, isGraph: true,
@@ -161,6 +161,7 @@ export default function LearningMode() {
   const [timeline, setTimeline] = useState([]);
   const [statistics, setStatistics] = useState({});
   const [learning, setLearning] = useState({});
+  const [result, setResult] = useState(null); // Stores final algorithm result (e.g. Dijkstra path)
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1.0);
@@ -198,6 +199,13 @@ export default function LearningMode() {
     }
     const targetNodeId = recoveryTarget || '';
     const isAttack = activeAlgo.id === 'bfs' || activeAlgo.id === 'dfs';
+
+    // On the final frame of Dijkstra, highlight the shortest path in blue
+    const isFinalDijkstraFrame =
+      activeAlgo.id === 'dijkstra' &&
+      currentFrame === timeline.length - 1 &&
+      result?.path?.length > 0;
+    const shortestPathSet = isFinalDijkstraFrame ? new Set(result.path) : new Set();
 
     if (isAttack) {
       setNodes(originalNodes.map(n => {
@@ -253,6 +261,11 @@ export default function LearningMode() {
         const isSrc = n.id === startNodeId;
         const isDst = n.id === targetNodeId;
         
+        // On final Dijkstra frame, highlight path nodes distinctly
+        if (isFinalDijkstraFrame && shortestPathSet.has(n.id)) {
+          status = 'recovered'; // blue
+        }
+
         const isQueued = (
           (frame.queue && JSON.stringify(frame.queue).includes(n.id)) ||
           (frame.stack && JSON.stringify(frame.stack).includes(n.id))
@@ -280,13 +293,22 @@ export default function LearningMode() {
           (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
           (e.source === activeEdge[1] && e.target === activeEdge[0])
         );
+        // On final Dijkstra frame, colour path edges blue
+        const isOnPath = isFinalDijkstraFrame && result.path && (() => {
+          const path = result.path;
+          for (let i = 0; i < path.length - 1; i++) {
+            if ((e.source === path[i] && e.target === path[i + 1]) ||
+                (e.source === path[i + 1] && e.target === path[i])) return true;
+          }
+          return false;
+        })();
         return {
           ...e,
-          selected: !!isActive,
+          selected: !!isActive || !!isOnPath,
           data: {
             ...e.data,
             isSimulation: false,
-            isRecovery: !!isActive
+            isRecovery: !!isActive || !!isOnPath
           }
         };
       }));
@@ -371,6 +393,7 @@ export default function LearningMode() {
         setTimeline(response.timeline || []);
         setStatistics(response.statistics || {});
         setLearning(response.learning || {});
+        setResult(response.result || null);
       } else {
         setErrorMsg('Failed to run computation timeline.');
       }
@@ -701,6 +724,34 @@ export default function LearningMode() {
         <div className="flex-1 flex flex-col justify-between h-full space-y-4 relative">
           {/* React Flow Canvas Wrapper */}
           <div className="flex-1 min-h-[300px] border border-[#4B5563]/25 rounded-xl overflow-hidden bg-[#0F1720] relative">
+            {/* Dijkstra info panel: source → target overview */}
+            {activeAlgo.id === 'dijkstra' && (
+              <div className="absolute top-4 left-4 z-10 bg-[#0F1720]/90 border border-[#3B82F6]/40 px-3 py-2 rounded-lg font-sans text-[8px] text-[#CBD5E1] shadow-lg space-y-1 max-w-[190px]">
+                <div className="font-bold uppercase tracking-wider text-[#3B82F6] border-b border-[#3B82F6]/15 pb-0.5 mb-0.5 text-[7.5px]">Dijkstra Context</div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#3B82F6]">🛡️</span>
+                  <div>
+                    <span className="text-[#94A3B8] block text-[7px] uppercase">Source (Recovery Server)</span>
+                    <span className="font-bold text-[#F8FAFC] font-mono">{recoverySource || 'Not set'}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#EF4444]">🔴</span>
+                  <div>
+                    <span className="text-[#94A3B8] block text-[7px] uppercase">Target (Infected Device)</span>
+                    <span className="font-bold text-[#F8FAFC] font-mono">{recoveryTarget || 'Not set'}</span>
+                  </div>
+                </div>
+                {result?.found && currentFrame === timeline.length - 1 && (
+                  <div className="pt-0.5 border-t border-[#3B82F6]/15">
+                    <span className="text-[#22C55E] font-bold">Total Cost: {result.cost}</span>
+                    <div className="text-[#CBD5E1] font-mono mt-0.5 leading-tight">
+                      {result.path?.join(' → ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Status Indicators Legend */}
             <div className="absolute top-4 right-4 z-10 bg-[#0F1720]/90 border border-[#4B5563]/30 px-3 py-2 rounded-lg flex flex-col gap-1.5 font-sans text-[8px] text-[#CBD5E1] shadow-lg">
               <span className="font-bold uppercase tracking-wider text-[#94A3B8] border-b border-[#4B5563]/10 pb-0.5 mb-0.5">Status Legend</span>

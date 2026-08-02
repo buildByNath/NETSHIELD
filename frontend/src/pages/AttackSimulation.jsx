@@ -42,11 +42,10 @@ const edgeTypes = {
 };
 
 const SPEED_LEVELS = [
-  { value: 0.25, label: '0.25x (2s)' },
-  { value: 0.5, label: '0.5x (1s)' },
-  { value: 1.0, label: '1.0x (0.5s)' },
-  { value: 2.0, label: '2.0x (0.25s)' },
-  { value: 5.0, label: '5.0x (0.1s)' }
+  { value: 0.5, label: '0.5x (Teaching)' },
+  { value: 1.0, label: '1.0x (Normal)' },
+  { value: 2.0, label: '2.0x (Fast)' },
+  { value: 4.0, label: '4.0x (Demo)' }
 ];
 
 function SimulationWorkspace() {
@@ -73,7 +72,13 @@ function SimulationWorkspace() {
     resumePlayback,
     resetPlayback,
     nextStep,
-    prevStep
+    prevStep,
+    nodeSimStates,
+    stats,
+    handleNodeIsolate,
+    handleNodeRecover,
+    handleNodeRestore,
+    notification
   } = useSimulation();
 
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
@@ -259,15 +264,90 @@ function SimulationWorkspace() {
               </div>
             )}
 
-            {/* General metrics */}
-            <div className="border-t border-[#4B5563]/20 pt-4 grid grid-cols-2 gap-3 text-center text-[10px] font-mono">
-              <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
-                <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Infected</span>
-                <span className="text-[#EF4444] font-black text-sm">{activeFrameData.visited?.length || 0} / {nodes.length}</span>
+            {/* Infected Devices List */}
+            <div className="flex-1 flex flex-col overflow-hidden space-y-1.5 border-t border-[#4B5563]/20 pt-3 min-h-[120px]">
+              <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Infected Devices ({Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length})</label>
+              <div className="flex-1 bg-[#0F1720]/40 border border-[#4B5563]/25 rounded-lg p-2 overflow-y-auto space-y-1.5 scrollbar-thin">
+                {Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length > 0 ? (
+                  Object.keys(nodeSimStates)
+                    .filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising')
+                    .map(nodeId => {
+                      const nodeState = nodeSimStates[nodeId] || {};
+                      const isNodeIsolated = nodeState.isIsolated;
+                      return (
+                        <div 
+                          key={nodeId}
+                          onClick={() => {
+                            if (reactFlowInstance) {
+                              const nodeObj = nodes.find(n => n.id === nodeId);
+                              if (nodeObj) {
+                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.6, duration: 800 });
+                              }
+                            }
+                          }}
+                          className="flex items-center justify-between bg-[#1B2838] border border-[#EF4444]/30 hover:border-[#FD802E] p-1.5 rounded cursor-pointer transition-all"
+                        >
+                          <div className="font-mono text-[9px] min-w-0 flex-1 pr-1.5">
+                            <span className="text-[#F8FAFC] font-bold block truncate">{nodeId}</span>
+                            <span className="text-[8px] text-[#EF4444] block truncate">{isNodeIsolated ? '🛡️ ISOLATED' : '🔴 INFECTED'}</span>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleNodeRecover(nodeId); }}
+                              className="px-1.5 py-0.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                            >
+                              Recover
+                            </button>
+                            {!isNodeIsolated ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleNodeIsolate(nodeId); }}
+                                className="px-1.5 py-0.5 bg-[#EF4444] hover:bg-[#F87171] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                              >
+                                Isolate
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleNodeRestore(nodeId); }}
+                                className="px-1.5 py-0.5 bg-[#22C55E] hover:bg-[#4ADE80] text-[#0F1720] text-[8px] font-bold rounded uppercase"
+                              >
+                                Link
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="text-[#94A3B8] italic text-center my-auto text-[9px] py-4">No active threat payloads</div>
+                )}
               </div>
-              <div className="bg-[#0F1720]/50 p-2 rounded border border-[#4B5563]/10">
-                <span className="text-[#94A3B8] block text-[9px] uppercase tracking-wider mb-0.5">Timeline Step</span>
-                <span className="text-[#F8FAFC] font-black text-sm">{currentFrame + 1} / {timeline.length}</span>
+            </div>
+
+            {/* General metrics */}
+            <div className="border-t border-[#4B5563]/20 pt-3 grid grid-cols-2 gap-2 text-center text-[9px] font-mono">
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Healthy</span>
+                <span className="text-emerald-400 font-black text-xs">{stats.healthy}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Infected</span>
+                <span className="text-rose-500 font-black text-xs">{stats.infected}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Isolated</span>
+                <span className="text-slate-300 font-black text-xs">{stats.isolated}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Blocked</span>
+                <span className="text-rose-400 font-black text-xs">{stats.blocked}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Saved</span>
+                <span className="text-cyan-400 font-black text-xs">{stats.saved}</span>
+              </div>
+              <div className="bg-[#0F1720]/50 p-1.5 rounded border border-[#4B5563]/10">
+                <span className="text-[#94A3B8] block text-[8px] uppercase tracking-wider mb-0.5">Step</span>
+                <span className="text-[#F8FAFC] font-black text-xs">{currentFrame + 1} / {timeline.length}</span>
               </div>
             </div>
 
@@ -354,6 +434,13 @@ function SimulationWorkspace() {
 
         {/* React Flow canvas */}
         <div className="flex-1 h-full relative" style={{ pointerEvents: simulationStatus === 'loading' ? 'none' : 'auto' }}>
+          {/* Auto-failover notification banner */}
+          {notification && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-[#1B2838]/95 backdrop-blur border border-[#3B82F6]/50 text-[#CBD5E1] font-mono text-[10px] px-4 py-2 rounded-xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <span className="text-[#3B82F6] text-sm">ℹ️</span>
+              <span>{notification}</span>
+            </div>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -371,6 +458,17 @@ function SimulationWorkspace() {
             <Background color="#4B5563" gap={16} size={1} />
             <Controls className="react-flow__controls" />
           </ReactFlow>
+
+          {/* Legend overlay card */}
+          <div className="absolute bottom-4 left-4 bg-[#1B2838]/90 backdrop-blur border border-[#4B5563]/40 p-3 rounded-xl shadow-2xl z-20 font-sans text-[10px] text-[#CBD5E1] pointer-events-auto flex flex-col gap-1.5 min-w-[130px]">
+            <div className="text-white font-bold mb-0.5 border-b border-[#4B5563]/25 pb-1 uppercase tracking-wider text-[8px] text-[#FD802E]">Status Legend</div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#22C55E]/20 border border-[#22C55E]" /><span>🟢 Healthy</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#FD802E]/20 border border-[#FD802E]" /><span>🟠 Compromising</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#EF4444]/20 border border-[#EF4444]" /><span>🔴 Infected</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#3B82F6]/5 border border-[#3B82F6] border-dashed" /><span>🔵 Recovering</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#3B82F6]/20 border border-[#3B82F6]" /><span>🔵 Recovered</span></div>
+            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-[#DFE3E6] border border-[#3B82F6]" /><span>🛡️ Isolated</span></div>
+          </div>
         </div>
 
         {/* Display details on complexity variables inside bottom sheet overlay (Learning Mode details) */}

@@ -9,6 +9,8 @@ import { getBezierPath, EdgeLabelRenderer } from 'reactflow';
 
 export default function CustomEdge({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -29,6 +31,15 @@ export default function CustomEdge({
     targetPosition,
   });
 
+  const [reverseEdgePath] = getBezierPath({
+    sourceX: targetX,
+    sourceY: targetY,
+    targetX: sourceX,
+    targetY: sourceY,
+    sourcePosition: targetPosition,
+    targetPosition: sourcePosition,
+  });
+
   const weight = data?.weight ?? 1;
   const latency = data?.latency ?? 10;
   
@@ -40,6 +51,11 @@ export default function CustomEdge({
   if (isSimulation) strokeColor = '#EF4444'; // virus red
   else if (isRecovery) strokeColor = '#3B82F6'; // recovery blue
   else if (selected) strokeColor = '#FD802E'; // selected accent orange
+
+  const speed = data?.speed ?? 1.0;
+  const dur = `${1.2 / speed}s`;
+  const isReverse = data?.pulseSource === target;
+  const pathForPulse = isReverse ? reverseEdgePath : edgePath;
 
   return (
     <>
@@ -54,6 +70,16 @@ export default function CustomEdge({
           strokeWidth: isSimulation || isRecovery || selected ? 3.5 : 2.0,
         }}
       />
+      {isSimulation && (
+        <circle r="4.5" fill="#EF4444" className="filter drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]">
+          <animateMotion dur={dur} repeatCount="indefinite" path={pathForPulse} />
+        </circle>
+      )}
+      {isRecovery && (
+        <circle r="4.5" fill="#3B82F6" className="filter drop-shadow-[0_0_3px_rgba(59,130,246,0.8)]">
+          <animateMotion dur={dur} repeatCount="indefinite" path={pathForPulse} />
+        </circle>
+      )}
       <EdgeLabelRenderer>
         <div
           style={{
