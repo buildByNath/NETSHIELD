@@ -9,11 +9,42 @@ import { projectService, algorithmService } from '../services/api';
 
 const SimulationContext = createContext(null);
 
+// Helper to restore initial canvas coordinates on page mounts
+const getInitialNodes = () => {
+  try {
+    const draftStr = localStorage.getItem('netshield_autosave');
+    if (draftStr) {
+      const draft = JSON.parse(draftStr);
+      if (draft.nodes && draft.nodes.length > 0) {
+        return draft.nodes;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse autosave nodes draft in context', e);
+  }
+  return [];
+};
+
+const getInitialEdges = () => {
+  try {
+    const draftStr = localStorage.getItem('netshield_autosave');
+    if (draftStr) {
+      const draft = JSON.parse(draftStr);
+      if (draft.edges) {
+        return draft.edges;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse autosave edges draft in context', e);
+  }
+  return [];
+};
+
 export function SimulationProvider({ children }) {
-  const [originalNodes, setOriginalNodes] = useState([]);
-  const [originalEdges, setOriginalEdges] = useState([]);
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  const [originalNodes, setOriginalNodes] = useState(getInitialNodes());
+  const [originalEdges, setOriginalEdges] = useState(getInitialEdges());
+  const [nodes, setNodes] = useState(getInitialNodes());
+  const [edges, setEdges] = useState(getInitialEdges());
   
   // Simulation/Recovery States
   const [mode, setMode] = useState('idle'); // 'idle' | 'simulation' | 'recovery'

@@ -50,10 +50,41 @@ const edgeTypes = {
   customEdge: CustomEdge
 };
 
+// Helper to restore initial canvas coordinates on page mounts
+const getInitialNodes = () => {
+  try {
+    const draftStr = localStorage.getItem('netshield_autosave');
+    if (draftStr) {
+      const draft = JSON.parse(draftStr);
+      if (draft.nodes && draft.nodes.length > 0) {
+        return draft.nodes;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse autosave nodes draft', e);
+  }
+  return [];
+};
+
+const getInitialEdges = () => {
+  try {
+    const draftStr = localStorage.getItem('netshield_autosave');
+    if (draftStr) {
+      const draft = JSON.parse(draftStr);
+      if (draft.edges) {
+        return draft.edges;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse autosave edges draft', e);
+  }
+  return [];
+};
+
 function BuilderCanvas() {
   const reactFlowWrapper = useRef(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(getInitialNodes());
+  const [edges, setEdges, onEdgesChange] = useEdgesState(getInitialEdges());
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   
   // Selection & UI state

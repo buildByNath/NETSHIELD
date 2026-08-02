@@ -39,7 +39,7 @@ const edgeTypes = {
  * Purpose: Interactive textbook and laboratory visualizer for all 15 DAA algorithms.
  */
 
-// Categorized directory of all 15 algorithms
+// Categorized directory of all 12 graph algorithms
 const ALGORITHMS = [
   // Graph Traversals
   { id: 'bfs', name: 'Worm Propagation (BFS)', category: 'Graph Traversal', complexity: { time: 'O(V + E)', space: 'O(V)' }, isGraph: true,
@@ -68,62 +68,7 @@ const ALGORITHMS = [
   { id: 'branch_bound', name: 'Branch and Bound', category: 'Greedy & DP', complexity: { time: 'O(2^N) Worst', space: 'O(2^N)' }, isGraph: true,
     desc: "Solves 0/1 binary decision Knapsack by building a state search tree, calculating fractional upper bounds, and pruning paths." },
   { id: 'tsp', name: 'Traveling Salesman Tour', category: 'Greedy & DP', complexity: { time: 'O(N!)', space: 'O(N)' }, isGraph: true,
-    desc: "Finds the shortest inspection route visiting a list of devices once and returning to start using backtracking search." },
-  
-  // Non-graph Educational Algorithms (Interactive Visualizers)
-  { id: 'merge_sort', name: 'Merge Sort', category: 'Sorting', complexity: { time: 'O(N log N)', space: 'O(N)' }, isGraph: false,
-    desc: "A stable divide-and-conquer sorting algorithm. Recursively splits arrays in half and merges sorted sub-lists.",
-    pseudo: [
-      "MergeSort(A, p, r):",
-      "  if p < r:",
-      "    q = (p + r) / 2",
-      "    MergeSort(A, p, q)",
-      "    MergeSort(A, q + 1, r)",
-      "    Merge(A, p, q, r)"
-    ] },
-  { id: 'quick_sort', name: 'Randomized Quick Sort', category: 'Sorting', complexity: { time: 'O(N log N) Avg', space: 'O(log N)' }, isGraph: false,
-    desc: "Divides arrays by selecting a randomized pivot element, partitioning smaller items left and larger right, and recursing.",
-    pseudo: [
-      "RandomizedQuickSort(A, p, r):",
-      "  if p < r:",
-      "    q = RandomizedPartition(A, p, r)",
-      "    RandomizedQuickSort(A, p, q-1)",
-      "    RandomizedQuickSort(A, q+1, r)"
-    ] },
-  { id: 'matrix_chain', name: 'Matrix Chain DP', category: 'Divide & Conquer', complexity: { time: 'O(N³)', space: 'O(N²)' }, isGraph: false,
-    desc: "Dynamic programming optimization mapping matrix chain splits, minimizing total scalar multiplication operations.",
-    pseudo: [
-      "MatrixChainOrder(p):",
-      "  for l = 2 to n:",
-      "    for i = 1 to n - l + 1:",
-      "      m[i, j] = infinity",
-      "      for k = i to j - 1:",
-      "        q = m[i,k] + m[k+1,j] + p[i-1]*p[k]*p[j]",
-      "        if q < m[i,j]: m[i,j] = q, s[i,j] = k"
-    ] },
-  { id: 'strassen', name: 'Strassen Multiplication', category: 'Divide & Conquer', complexity: { time: 'O(N^2.81)', space: 'O(N²)' }, isGraph: false,
-    desc: "Divide-and-conquer matrix multiplication. Reduces standard sub-multiplications from 8 to 7 using algebraic sub-products.",
-    pseudo: [
-      "Strassen(A, B):",
-      "  M1 = (A11 + A22) * (B11 + B22)",
-      "  M2 = (A21 + A22) * B11",
-      "  M3 = A11 * (B12 - B22)",
-      "  C11 = M1 + M4 - M5 + M7",
-      "  C12 = M3 + M5",
-      "  C21 = M2 + M4",
-      "  C22 = M1 - M2 + M3 + M6"
-    ] },
-  { id: 'nqueens', name: 'N-Queens Backtracking', category: 'Backtracking', complexity: { time: 'O(N!)', space: 'O(N)' }, isGraph: false,
-    desc: "Backtracking puzzle placing N non-attacking queens on an N x N chessboard. Backtracks immediately upon conflict detections.",
-    pseudo: [
-      "SolveNQueens(board, row):",
-      "  if row == N: add solution; return",
-      "  for col = 0 to N - 1:",
-      "    if is_safe(board, row, col):",
-      "      board[row] = col",
-      "      SolveNQueens(board, row + 1)",
-      "      board[row] = -1 // Backtrack"
-    ] }
+    desc: "Finds the shortest inspection route visiting a list of devices once and returning to start using backtracking search." }
 ];
 
 // Speed playback level selections
@@ -135,7 +80,7 @@ const SPEED_LEVELS = [
 ];
 
 export default function LearningMode() {
-  const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'merge_sort'));
+  const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'bfs'));
   
   // Simulation context hook
   const { 
@@ -149,11 +94,6 @@ export default function LearningMode() {
   // Local React Flow visualizer states
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-
-  // Custom Visualizer Inputs
-  const [sortInput, setSortInput] = useState('29, 10, 14, 37, 13, 2, 7');
-  const [matrixDimsInput, setMatrixDimsInput] = useState('10, 20, 30, 40, 30');
-  const [queensSize, setQueensSize] = useState(4);
 
   // Playback state
   const [timeline, setTimeline] = useState([]);
@@ -332,25 +272,6 @@ export default function LearningMode() {
           };
           response = await algorithmService.recoverNetwork(activeAlgo.id, nodesToUse, edgesToUse, options);
         }
-      } else {
-        // Non-graph algorithms
-        if (activeAlgo.id === 'merge_sort') {
-          const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
-          response = await algorithmService.simulateSort('merge_sort', arr);
-        } else if (activeAlgo.id === 'quick_sort') {
-          const arr = sortInput.split(',').map(n => parseInt(n.trim()) || 0);
-          response = await algorithmService.simulateSort('quick_sort', arr);
-        } else if (activeAlgo.id === 'matrix_chain') {
-          const dims = matrixDimsInput.split(',').map(n => parseInt(n.trim()) || 10);
-          response = await algorithmService.simulateDP(dims);
-        } else if (activeAlgo.id === 'strassen') {
-          response = await algorithmService.simulateStrassen(
-            [[1, 2], [3, 4]],
-            [[5, 6], [7, 8]]
-          );
-        } else if (activeAlgo.id === 'nqueens') {
-          response = await algorithmService.simulateNQueens(queensSize);
-        }
       }
       if (response && response.success) {
         setTimeline(response.timeline || []);
@@ -368,8 +289,10 @@ export default function LearningMode() {
   };
 
   useEffect(() => {
-    fetchAlgorithmDetails();
-  }, [activeAlgo]);
+    if (originalNodes.length > 0) {
+      fetchAlgorithmDetails();
+    }
+  }, [activeAlgo, originalNodes, startNodes, recoverySource, recoveryTarget]);
 
   // Handle Playback ticker
   useEffect(() => {
@@ -542,277 +465,6 @@ export default function LearningMode() {
       return (
         <div className="flex-1 flex justify-center items-center text-[#94A3B8] italic font-sans">
           Computing algorithm state space...
-        </div>
-      );
-    }
-
-    if (activeAlgo.id === 'merge_sort') {
-      const activeArray = activeFrame.array || [];
-      const subarrays = activeFrame.subarrays || [];
-      return (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-6">
-          <div className="flex-1 flex flex-col justify-center items-center space-y-8 p-4">
-            {/* Primary array row */}
-            <div className="flex gap-2">
-              {activeArray.map((val, idx) => (
-                <div key={idx} className="w-12 h-12 bg-[#233D4C] border border-[#3B82F6]/40 text-[#F8FAFC] font-black rounded-lg flex items-center justify-center text-xs shadow-md">
-                  {val}
-                </div>
-              ))}
-            </div>
-            
-            {/* Subarrays splitting display */}
-            {subarrays.length > 0 && (
-              <div className="flex gap-8 justify-center items-center animate-in slide-in-from-bottom-2 duration-200">
-                {subarrays.map((sub, sIdx) => (
-                  <div key={sIdx} className="flex gap-1.5 bg-[#0F1720]/80 p-2 rounded-lg border border-[#4B5563]/15">
-                    {sub.map((v, vIdx) => (
-                      <div key={vIdx} className="w-8 h-8 bg-[#1B2838] border border-[#FD802E]/40 text-[#FD802E] font-bold rounded flex items-center justify-center text-[10px]">
-                        {v}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Operations controls input */}
-          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex items-center gap-4">
-            <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider font-sans flex-shrink-0">Custom Array:</span>
-            <input 
-              type="text" 
-              value={sortInput}
-              onChange={(e) => setSortInput(e.target.value)}
-              className="flex-1 bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-2 py-1.5 rounded outline-none font-mono"
-            />
-            <button 
-              onClick={fetchAlgorithmDetails}
-              className="px-3 py-1.5 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#F8FAFC] rounded font-bold uppercase text-[9px] flex-shrink-0"
-            >
-              Reload Array
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (activeAlgo.id === 'quick_sort') {
-      const activeArray = activeFrame.array || [];
-      const pivotIdx = activeFrame.pivotIdx ?? -1;
-      const leftIdx = activeFrame.leftIdx ?? -1;
-      const rightIdx = activeFrame.rightIdx ?? -1;
-      return (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-6">
-          <div className="flex-1 flex items-end justify-center gap-3 p-4 min-h-[160px]">
-            {activeArray.map((val, idx) => {
-              const heightPercent = Math.min(100, Math.max(15, (val / Math.max(...activeArray, 1)) * 100));
-              let color = 'bg-[#233D4C] border-[#4B5563]/30 text-[#CBD5E1]';
-              if (idx === pivotIdx) color = 'bg-[#FD802E]/30 border-[#FD802E] text-[#FD802E] shadow-[0_0_8px_rgba(253,128,46,0.2)] font-bold';
-              else if (idx === leftIdx || idx === rightIdx) color = 'bg-[#EF4444]/30 border-[#EF4444] text-[#EF4444] font-bold';
-              
-              return (
-                <div key={idx} className="flex flex-col items-center gap-1.5">
-                  <div 
-                    style={{ height: `${heightPercent}px` }} 
-                    className={`w-8 rounded-t transition-all ${color} border flex items-end justify-center pb-1 text-[9px] font-mono`}
-                  >
-                    {val}
-                  </div>
-                  <span className="text-[8px] font-mono text-[#94A3B8]">idx {idx}</span>
-                </div>
-              );
-            })}
-          </div>
-          
-          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex items-center gap-4">
-            <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider font-sans flex-shrink-0">Custom Array:</span>
-            <input 
-              type="text" 
-              value={sortInput}
-              onChange={(e) => setSortInput(e.target.value)}
-              className="flex-1 bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-2 py-1.5 rounded outline-none font-mono"
-            />
-            <button 
-              onClick={fetchAlgorithmDetails}
-              className="px-3 py-1.5 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#F8FAFC] rounded font-bold uppercase text-[9px] flex-shrink-0"
-            >
-              Reload Array
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (activeAlgo.id === 'matrix_chain') {
-      const matrix = activeFrame.costMatrix || {};
-      const currentSplit = activeFrame.currentSplit; // [i, k, j]
-      return (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-6">
-          <div className="flex-1 flex justify-center items-center p-4">
-            {Object.keys(matrix).length > 0 ? (
-              <div className="bg-[#0F1720]/40 p-4 border border-[#4B5563]/25 rounded-lg max-h-[190px] overflow-y-auto w-full max-w-sm">
-                <table className="w-full text-left text-[9px] border-collapse font-mono">
-                  <thead>
-                    <tr className="border-b border-[#4B5563]/20 pb-1">
-                      <th className="text-[#94A3B8] pb-1">Matrix</th>
-                      {Object.keys(matrix).map(k => <th key={k} className="text-[#CBD5E1] font-bold pb-1">{k}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(matrix).map(([rowKey, cols], rIdx) => (
-                      <tr key={rowKey} className="border-b border-[#4B5563]/5">
-                        <td className="font-bold text-[#CBD5E1] py-1.5">{rowKey}</td>
-                        {Object.entries(cols).map(([colKey, val], cIdx) => {
-                          const isHighlighted = currentSplit && 
-                            (rIdx + 1 === currentSplit[0] && cIdx + 1 === currentSplit[2]);
-                            
-                          return (
-                            <td 
-                              key={colKey} 
-                              className={`py-1.5 font-bold transition-all ${
-                                isHighlighted 
-                                  ? 'text-[#FD802E] bg-[#FD802E]/10 rounded'
-                                  : 'text-cyan-400'
-                              }`}
-                            >
-                              {val}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <span className="text-[#94A3B8] italic">No DP table data</span>}
-          </div>
-          
-          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex items-center gap-4">
-            <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider font-sans flex-shrink-0">Dimensions:</span>
-            <input 
-              type="text" 
-              value={matrixDimsInput}
-              onChange={(e) => setMatrixDimsInput(e.target.value)}
-              className="flex-1 bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-2 py-1.5 rounded outline-none font-mono"
-            />
-            <button 
-              onClick={fetchAlgorithmDetails}
-              className="px-3 py-1.5 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#F8FAFC] rounded font-bold uppercase text-[9px] flex-shrink-0"
-            >
-              Reload Dims
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (activeAlgo.id === 'strassen') {
-      const activeProducts = activeFrame.products || {};
-      const matrixC = activeFrame.matrixC || [];
-      return (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-4">
-          <div className="flex-1 grid grid-cols-2 gap-4 p-4 items-center">
-            
-            {/* Strassen algebraic products list */}
-            <div className="bg-[#0F1720]/40 p-3 border border-[#4B5563]/25 rounded-lg h-full overflow-y-auto space-y-1.5 font-mono text-[9px]">
-              <span className="text-[#FD802E] font-bold block mb-1 uppercase text-[8px] tracking-wider">Sub-products (M1-M7):</span>
-              {['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].map(m => (
-                <div key={m} className="flex justify-between border-b border-[#4B5563]/5 pb-0.5">
-                  <span className="text-[#CBD5E1]">{m}:</span>
-                  <span className="font-bold text-cyan-400">{activeProducts[m] !== undefined ? activeProducts[m] : 'Pending'}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Combined result matrix */}
-            <div className="flex flex-col items-center justify-center bg-[#0F1720]/20 p-3 rounded-lg border border-[#4B5563]/15">
-              <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider mb-3">Result Matrix C (2x2)</span>
-              {matrixC.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2 w-28 h-28 font-mono">
-                  {matrixC.map((row, rIdx) => 
-                    row.map((val, cIdx) => (
-                      <div key={`${rIdx}-${cIdx}`} className="bg-[#233D4C] border border-[#3B82F6]/30 text-cyan-400 font-bold rounded-lg flex items-center justify-center text-xs shadow-md">
-                        {val}
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : <div className="w-28 h-28 border border-dashed border-[#4B5563]/30 rounded-lg flex items-center justify-center text-[9px] text-[#94A3B8] italic">Multiplying...</div>}
-            </div>
-
-          </div>
-        </div>
-      );
-    }
-
-    if (activeAlgo.id === 'nqueens') {
-      const activeBoard = activeFrame.board || [];
-      const currentRow = activeFrame.currentRow ?? -1;
-      const currentCol = activeFrame.currentCol ?? -1;
-      const isConflict = activeFrame.conflict ?? false;
-      const size = activeBoard.length || 4;
-      
-      return (
-        <div className="flex-1 flex flex-col justify-between h-full space-y-4">
-          <div className="flex-1 flex justify-center items-center p-4">
-            <div 
-              style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
-              className="grid gap-0.5 bg-[#4B5563]/20 p-1 rounded-lg border border-[#4B5563]/35 shadow-2xl"
-            >
-              {activeBoard.map((row, rIdx) => 
-                row.map((cell, cIdx) => {
-                  const isBlack = (rIdx + cIdx) % 2 === 1;
-                  const hasQueen = cell === 1;
-                  const isCurrentProbe = rIdx === currentRow && cIdx === currentCol;
-                  
-                  let cellBg = isBlack ? 'bg-[#1B2838]' : 'bg-[#233D4C]';
-                  let border = 'border border-[#4B5563]/10';
-                  
-                  if (isCurrentProbe) {
-                    cellBg = isConflict ? 'bg-[#EF4444]/30 animate-pulse' : 'bg-[#FD802E]/30';
-                    border = isConflict ? 'border-2 border-[#EF4444]' : 'border-2 border-[#FD802E]';
-                  }
-
-                  return (
-                    <div 
-                      key={`${rIdx}-${cIdx}`} 
-                      className={`w-8 h-8 flex items-center justify-center rounded transition-all duration-150 ${cellBg} ${border}`}
-                    >
-                      {hasQueen && (
-                        <span className={`text-sm ${isCurrentProbe && isConflict ? 'text-[#EF4444]' : 'text-amber-400'} animate-bounce`}>
-                          👑
-                        </span>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-          
-          <div className="p-3 bg-[#0F1720]/60 border border-[#4B5563]/25 rounded-lg flex items-center justify-between">
-            <span className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider font-sans">Chess Board Dimension (N):</span>
-            <div className="flex gap-2 font-sans text-[10px]">
-              {[4, 8].map(sz => (
-                <button
-                  key={sz}
-                  onClick={() => {
-                    setQueensSize(sz);
-                    // trigger refresh
-                    setTimeout(() => fetchAlgorithmDetails(), 50);
-                  }}
-                  className={`px-3 py-1 rounded border transition-colors ${
-                    queensSize === sz
-                      ? 'bg-[#FD802E] text-[#F8FAFC] border-[#FD802E]'
-                      : 'bg-[#0F1720] text-[#CBD5E1] border-[#4B5563]/30 hover:border-[#FD802E]/30'
-                  }`}
-                >
-                  {sz} x {sz}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       );
     }
