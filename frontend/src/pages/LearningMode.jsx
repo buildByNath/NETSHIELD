@@ -891,8 +891,10 @@ export default function LearningMode() {
         </div>
       </div>
 
-      {/* Main Learning Content Workspace */}
-      <div className="flex-1 flex flex-col overflow-y-auto bg-[#0F1720] text-[#F8FAFC] p-6 space-y-4">
+      {/* Main Learning Content Workspace — flex column: scrollable content + pinned controls */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0F1720] text-[#F8FAFC]">
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
         {/* Header banner */}
         <div className="bg-[#1B2838] border border-[#4B5563]/30 rounded-xl p-4 flex justify-between items-center shadow-lg">
           <div>
@@ -1103,10 +1105,10 @@ export default function LearningMode() {
               </div>
             </div>
           </div>
-        </div>
+        </div>{/* end scrollable content area */}
 
-        {/* Playback controls row */}
-        <div className="bg-[#1B2838] border border-[#4B5563]/30 rounded-xl p-3 flex items-center justify-between shadow-md flex-shrink-0">
+        {/* Playback controls row — always pinned at the bottom */}
+        <div className="bg-[#1B2838] border-t border-[#4B5563]/30 px-4 py-2.5 flex items-center justify-between shadow-md flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={handlePrevStep}
