@@ -55,81 +55,87 @@ export default function CustomNode({ id, data, selected }) {
 
   const [hovered, setHovered] = useState(false);
 
-  // Dynamic styles matching user specifications
-  const getStatusClasses = () => {
+  // Inline styles — immune to Tailwind JIT purging in Docker builds
+  const getStatusStyles = () => {
     if (isIsolated) {
       return {
-        border: 'border-[#3B82F6] border-2 shadow-[0_0_12px_rgba(59,130,246,0.6)]',
-        bg: 'bg-[#DFE3E6]', // light neutral off-white surface for contrast
-        text: 'text-[#3B82F6]',
-        labelText: 'text-[#0F1720] font-black',
-        subText: 'text-[#4A5568]',
-        glow: 'animate-none'
+        bg: '#DFE3E6',
+        border: '2px solid #3B82F6',
+        boxShadow: '0 0 12px rgba(59,130,246,0.6)',
+        iconColor: '#3B82F6',
+        labelColor: '#0F1720',
+        subColor: '#4A5568',
+        pulse: false
       };
     }
 
     switch (status) {
       case 'infected':
         return {
-          border: 'border-[#EF4444] shadow-[0_0_14px_rgba(239,68,68,0.5)]',
-          bg: 'bg-[#EF4444]/15',
-          text: 'text-[#EF4444]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: 'animate-pulse'
+          bg: 'rgba(239,68,68,0.15)',
+          border: '1px solid #EF4444',
+          boxShadow: '0 0 14px rgba(239,68,68,0.5)',
+          iconColor: '#EF4444',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: true
         };
       case 'compromising':
       case 'reached':
         return {
-          border: 'border-[#FD802E] shadow-[0_0_12px_rgba(253,128,46,0.5)]',
-          bg: 'bg-[#FD802E]/10',
-          text: 'text-[#FD802E]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: 'animate-pulse'
+          bg: 'rgba(253,128,46,0.10)',
+          border: '1px solid #FD802E',
+          boxShadow: '0 0 12px rgba(253,128,46,0.5)',
+          iconColor: '#FD802E',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: true
         };
       case 'recovering':
         return {
-          border: 'border-[#3B82F6] border-dashed shadow-[0_0_12px_rgba(59,130,246,0.4)]',
-          bg: 'bg-[#3B82F6]/5',
-          text: 'text-[#3B82F6]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: 'animate-pulse'
+          bg: 'rgba(59,130,246,0.05)',
+          border: '2px dashed #3B82F6',
+          boxShadow: '0 0 12px rgba(59,130,246,0.4)',
+          iconColor: '#3B82F6',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: true
         };
       case 'recovered':
         return {
-          border: 'border-[#3B82F6] shadow-[0_0_10px_rgba(59,130,246,0.3)]',
-          bg: 'bg-[#3B82F6]/10',
-          text: 'text-[#3B82F6]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: ''
+          bg: 'rgba(59,130,246,0.10)',
+          border: '1px solid #3B82F6',
+          boxShadow: '0 0 10px rgba(59,130,246,0.3)',
+          iconColor: '#3B82F6',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: false
         };
       case 'protected':
         return {
-          border: 'border-[#FACC15] shadow-[0_0_12px_rgba(250,204,21,0.5)]',
-          bg: 'bg-[#FACC15]/10',
-          text: 'text-[#FACC15]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: ''
+          bg: 'rgba(250,204,21,0.10)',
+          border: '1px solid #FACC15',
+          boxShadow: '0 0 12px rgba(250,204,21,0.5)',
+          iconColor: '#FACC15',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: false
         };
       case 'healthy':
       default:
         return {
-          border: 'border-[#22C55E]/40 hover:border-[#22C55E]/80 shadow-md',
-          bg: 'bg-[#1B2838]',
-          text: 'text-[#22C55E]',
-          labelText: 'text-[#F8FAFC]',
-          subText: 'text-[#94A3B8]',
-          glow: ''
+          bg: '#1B2838',
+          border: '1px solid rgba(34,197,94,0.4)',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+          iconColor: '#22C55E',
+          labelColor: '#F8FAFC',
+          subColor: '#94A3B8',
+          pulse: false
         };
     }
   };
 
-  const statusStyle = getStatusClasses();
-  const activeBorder = selected ? 'ring-2 ring-[#FD802E]' : '';
+  const ss = getStatusStyles();
 
   const handleIsolateClick = (e) => {
     e.stopPropagation();
@@ -149,8 +155,8 @@ export default function CustomNode({ id, data, selected }) {
 
   return (
     <div 
-      className={`flex flex-col gap-1 px-3 py-2 rounded-lg border transition-all duration-200 min-w-[150px] text-left select-none relative ${statusStyle.bg} ${statusStyle.border} ${statusStyle.glow} ${activeBorder}`}
-      style={{ pointerEvents: 'all' }}
+      className={`flex flex-col gap-1 px-3 py-2 rounded-lg transition-all duration-200 min-w-[150px] text-left select-none relative ${ss.pulse ? 'animate-pulse' : ''} ${selected ? 'ring-2 ring-[#FD802E]' : ''}`}
+      style={{ pointerEvents: 'all', backgroundColor: ss.bg, border: ss.border, boxShadow: ss.boxShadow }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -163,14 +169,14 @@ export default function CustomNode({ id, data, selected }) {
       {/* Main Node Layout Body */}
       <div className="flex items-center gap-2.5">
         {/* Device Icon Panel */}
-        <div className={`p-1.5 rounded bg-[#0F1720] ${statusStyle.text} border border-[#4B5563]/20 flex-shrink-0`}>
-          {isIsolated ? <Shield className="h-5 w-5 text-[#3B82F6] fill-[#3B82F6]/10" /> : getDeviceIcon(type)}
+        <div className="p-1.5 rounded border border-[#4B5563]/20 flex-shrink-0" style={{ backgroundColor: '#0F1720', color: ss.iconColor }}>
+          {isIsolated ? <Shield className="h-5 w-5" style={{ color: '#3B82F6' }} /> : getDeviceIcon(type)}
         </div>
 
         {/* Device Labels */}
         <div className="flex-1 min-w-0">
-          <div className={`text-xs font-bold truncate leading-tight ${statusStyle.labelText}`}>{label}</div>
-          <div className={`text-[9px] uppercase tracking-wider truncate leading-tight mt-0.5 ${statusStyle.subText}`}>{type}</div>
+          <div className="text-xs font-bold truncate leading-tight" style={{ color: ss.labelColor }}>{label}</div>
+          <div className="text-[9px] uppercase tracking-wider truncate leading-tight mt-0.5" style={{ color: ss.subColor }}>{type}</div>
         </div>
       </div>
 
@@ -183,8 +189,8 @@ export default function CustomNode({ id, data, selected }) {
           </div>
           <div className="w-full h-1.5 bg-[#0F1720] rounded overflow-hidden border border-[#4B5563]/25">
             <div 
-              className={`h-full transition-all duration-100 ${status === 'compromising' ? 'bg-[#FD802E]' : 'bg-[#3B82F6]'}`}
-              style={{ width: `${progressVal}%` }}
+              className="h-full transition-all duration-100"
+              style={{ width: `${progressVal}%`, backgroundColor: status === 'compromising' ? '#FD802E' : '#3B82F6' }}
             />
           </div>
         </div>
