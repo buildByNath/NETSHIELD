@@ -1105,7 +1105,8 @@ export default function LearningMode() {
               </div>
             </div>
           </div>
-        </div>{/* end scrollable content area */}
+        </div>
+      </div> {/* end scrollable content area */}
 
         {/* Playback controls row — always pinned at the bottom */}
         <div className="bg-[#1B2838] border-t border-[#4B5563]/30 px-4 py-2.5 flex items-center justify-between shadow-md flex-shrink-0">
