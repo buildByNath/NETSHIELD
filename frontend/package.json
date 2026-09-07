@@ -12,10 +12,12 @@
     "axios": "^1.6.8",
     "framer-motion": "^11.1.7",
     "lucide-react": "^0.378.0",
+    "pixi.js": "^8.20.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "reactflow": "^11.11.3",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",

@@ -63,204 +63,119 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0F1720] select-none text-sans text-xs">
+    <div style={{ flex: 1, overflowY: 'auto', padding: '24px', background: 'var(--cth-cream-50)', color: 'var(--cth-ink-900)', fontFamily: 'var(--cth-font-ui)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
       {/* Page Title Header */}
-      <div className="flex justify-between items-center pb-2 border-b border-[#4B5563]/25">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '2px solid var(--cth-ink-900)' }}>
         <div>
-          <h2 className="text-xl font-bold text-[#F8FAFC]">NOC OPERATIONS DASHBOARD</h2>
-          <p className="text-[#94A3B8] text-[11px] mt-0.5">Real-time summary of network health status metrics.</p>
+          <h2 style={{ fontFamily: 'var(--cth-font-display)', fontSize: '13px', color: 'var(--cth-ink-900)', margin: 0, letterSpacing: '1px' }}>NOC OPERATIONS DASHBOARD</h2>
+          <p style={{ fontFamily: 'var(--cth-font-ui)', color: 'var(--cth-ink-500)', fontSize: '12px', marginTop: '4px' }}>Real-time summary of network health status metrics.</p>
         </div>
         <button
           onClick={syncGraph}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#233D4C] border border-[#4B5563]/30 hover:border-[#FD802E]/40 text-[#CBD5E1] hover:text-[#FD802E] rounded-lg transition-all"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: 'var(--cth-paper-100)', border: '2px solid var(--cth-ink-900)', boxShadow: '2px 2px 0 var(--cth-ink-900)', cursor: 'pointer', fontFamily: 'var(--cth-font-display)', fontSize: '8px', color: 'var(--cth-ink-900)' }}
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw size={12} />
           Refresh Stats
         </button>
       </div>
 
       {/* Grid summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card: Total nodes */}
-        <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Total Devices</div>
-            <div className="text-2xl font-black text-[#F8FAFC] mt-1 font-mono">{totalNodes}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        {[
+          { label: 'Total Devices',       value: totalNodes,            color: 'var(--cth-lemon)',  icon: <Layers size={22} />,     bg: 'var(--cth-lemon-light)' },
+          { label: 'Active Links',         value: totalEdges,            color: 'var(--cth-sky)',    icon: <Activity size={22} />,   bg: 'var(--cth-sky-light)' },
+          { label: 'Healthy / Safe',       value: healthy + protectedCount, color: 'var(--cth-mint)', icon: <Heart size={22} />,   bg: 'var(--cth-mint-light)' },
+          { label: 'Infected / Compromised', value: infected,            color: 'var(--cth-coral)', icon: <AlertCircle size={22} />, bg: 'var(--cth-coral-light)' },
+        ].map((card) => (
+          <div key={card.label} className="retro-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div>
+              <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-ink-500)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>{card.label}</div>
+              <div style={{ fontFamily: 'var(--cth-font-mono)', fontSize: '28px', fontWeight: 900, color: card.color, lineHeight: 1 }}>{card.value}</div>
+            </div>
+            <div style={{ padding: '10px', background: card.bg, border: '1px solid var(--cth-ink-300)', color: card.color, flexShrink: 0 }}>
+              {card.icon}
+            </div>
           </div>
-          <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#FD802E] border border-[#4B5563]/10">
-            <Layers className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Card: Total Edges */}
-        <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Active Links</div>
-            <div className="text-2xl font-black text-[#F8FAFC] mt-1 font-mono">{totalEdges}</div>
-          </div>
-          <div className="p-3 bg-[#0F1720]/50 rounded-lg text-emerald-400 border border-[#4B5563]/10">
-            <Activity className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Card: Healthy Nodes */}
-        <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Healthy / Safe</div>
-            <div className="text-2xl font-black text-[#22C55E] mt-1 font-mono">{healthy + protectedCount}</div>
-          </div>
-          <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#22C55E] border border-[#4B5563]/10">
-            <Heart className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Card: Infected Nodes */}
-        <div className="bg-[#233D4C] p-4 rounded-xl border border-[#4B5563]/25 flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase font-bold text-[#94A3B8] tracking-wider font-sans">Infected / Compromised</div>
-            <div className="text-2xl font-black text-[#EF4444] mt-1 font-mono">{infected}</div>
-          </div>
-          <div className="p-3 bg-[#0F1720]/50 rounded-lg text-[#EF4444] border border-[#4B5563]/10">
-            <AlertCircle className="h-6 w-6 animate-pulse" />
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* NOC Real-time Propagation & Security Metrics */}
-      <div className="bg-[#233D4C]/30 border border-[#4B5563]/25 rounded-xl p-5 space-y-4">
-        <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2 flex items-center justify-between">
+      {/* Attack Propagation & Security Metrics */}
+      <div className="retro-card">
+        <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '9px', color: 'var(--cth-ink-900)', textTransform: 'uppercase', letterSpacing: '1px', paddingBottom: '10px', borderBottom: '1px solid var(--cth-ink-300)', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Real-time Attack Propagation & Security Analytics</span>
           {mode !== 'idle' && (
-            <span className="text-[9px] font-mono bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded uppercase">
+            <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', background: 'var(--cth-coral-light)', color: 'var(--cth-coral)', padding: '2px 8px', border: '1px solid var(--cth-coral)' }}>
               {mode} active ({simulationStatus})
             </span>
           )}
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
-          {/* Compromised Count */}
-          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] text-[#94A3B8] uppercase block">Compromised nodes</span>
-              <span className="text-lg font-bold text-red-500 mt-1 block">{totalCompromised} devices</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+          {[
+            { label: 'Compromised Nodes', value: `${totalCompromised} devices`, color: 'var(--cth-coral)', icon: <Flame size={18} /> },
+            { label: 'Infection Rate',    value: `${propagationSpeed} nodes/s`, color: 'var(--cth-peach)', icon: <Activity size={18} /> },
+            { label: 'Security Rating',   value: `${securityPercentage.toFixed(1)}% — ${gradeInfo.grade}`, color: 'var(--cth-sky)', icon: <Shield size={18} /> },
+            { label: 'Elapsed Duration',  value: formatTime(elapsedSeconds),    color: 'var(--cth-mint)', icon: <Clock size={18} /> },
+          ].map((m) => (
+            <div key={m.label} style={{ padding: '10px', background: 'var(--cth-paper-100)', border: '1px solid var(--cth-ink-100)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-ink-500)', textTransform: 'uppercase', marginBottom: '4px' }}>{m.label}</div>
+                <div style={{ fontFamily: 'var(--cth-font-mono)', fontSize: '15px', fontWeight: 700, color: m.color }}>{m.value}</div>
+              </div>
+              <span style={{ color: m.color, opacity: 0.7 }}>{m.icon}</span>
             </div>
-            <Flame className="h-5 w-5 text-red-500" />
-          </div>
-
-          {/* Propagation Speed */}
-          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] text-[#94A3B8] uppercase block">Infection Rate</span>
-              <span className="text-lg font-bold text-amber-500 mt-1 block">{propagationSpeed} nodes/s</span>
-            </div>
-            <Activity className="h-5 w-5 text-amber-500" />
-          </div>
-
-          {/* Security Rating */}
-          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] text-[#94A3B8] uppercase block">Security Rating</span>
-              <span className={`text-lg font-bold mt-1 block ${gradeInfo.color}`}>
-                {securityPercentage.toFixed(1)}% - Grade {gradeInfo.grade}
-              </span>
-            </div>
-            <Shield className="h-5 w-5 text-[#3B82F6]" />
-          </div>
-
-          {/* Playback elapsed time */}
-          <div className="bg-[#0F1720]/40 p-3 rounded-lg border border-[#4B5563]/15 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] text-[#94A3B8] uppercase block">Elapsed Duration</span>
-              <span className="text-lg font-bold text-cyan-400 mt-1 block">{formatTime(elapsedSeconds)}</span>
-            </div>
-            <Clock className="h-5 w-5 text-cyan-400" />
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Charts Visualization Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pie Chart distribution */}
-        <div className="lg:col-span-1 bg-[#233D4C] border border-[#4B5563]/25 rounded-xl p-5 flex flex-col items-center">
-          <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2 w-full text-left">
+      {/* Charts & Info Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+        {/* Pie Chart */}
+        <div className="retro-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '8px', color: 'var(--cth-ink-900)', textTransform: 'uppercase', letterSpacing: '1px', paddingBottom: '10px', borderBottom: '1px solid var(--cth-ink-300)', marginBottom: '12px', width: '100%' }}>
             Device Health Distribution
-          </h3>
-          <div className="h-64 w-full flex justify-center items-center mt-4">
+          </div>
+          <div style={{ height: '220px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={finalPieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {finalPieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
+                <Pie data={finalPieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
+                  {finalPieData.map((entry, i) => <Cell key={`cell-${i}`} fill={entry.color} />)}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1B2838', border: '1px solid #4B5563', borderRadius: '8px' }}
-                  itemStyle={{ color: '#F8FAFC', fontSize: '11px' }}
-                />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--cth-paper-100)', border: '2px solid var(--cth-ink-900)', borderRadius: 0, fontFamily: 'var(--cth-font-ui)', fontSize: '11px' }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          
-          {/* Legend */}
-          <div className="flex gap-4 text-[10px] font-mono text-[#CBD5E1] pt-2">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#22C55E]"></span>
-              <span>Healthy: {healthy + protectedCount}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#EF4444]"></span>
-              <span>Infected: {infected}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-[#3B82F6]"></span>
-              <span>Recovered: {recovered}</span>
-            </div>
+          <div style={{ display: 'flex', gap: '12px', fontFamily: 'var(--cth-font-mono)', fontSize: '10px', color: 'var(--cth-ink-700)', paddingTop: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 10, height: 10, background: 'var(--cth-mint)', display: 'inline-block' }} />Healthy: {healthy + protectedCount}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 10, height: 10, background: 'var(--cth-coral)', display: 'inline-block' }} />Infected: {infected}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: 10, height: 10, background: 'var(--cth-sky)', display: 'inline-block' }} />Recovered: {recovered}</span>
           </div>
         </div>
 
-        {/* Informational NOC Log card */}
-        <div className="lg:col-span-2 bg-[#233D4C] border border-[#4B5563]/25 rounded-xl p-5 flex flex-col justify-between">
-          <div className="space-y-3 font-sans">
-            <h3 className="text-xs uppercase font-bold text-[#F8FAFC] tracking-wider border-b border-[#4B5563]/10 pb-2">
+        {/* NOC Info card */}
+        <div className="retro-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '9px', color: 'var(--cth-ink-900)', textTransform: 'uppercase', letterSpacing: '1px', paddingBottom: '10px', borderBottom: '1px solid var(--cth-ink-300)', marginBottom: '14px' }}>
               System Operations Center Status
-            </h3>
-            
-            <div className="space-y-4 text-sm text-[#CBD5E1] leading-relaxed pt-2">
-              <p>
-                Welcome to <strong>NETSHIELD Network Operations Center</strong>. This workspace is customized for studying graph modeling and optimization. Use the left navigation panel to switch modules:
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
-                  <strong className="text-[#FD802E]">🖧 Network Builder</strong>
-                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Drag & drop connections, edit weights and latency variables on nodes.</p>
+            </div>
+            <p style={{ fontFamily: 'var(--cth-font-ui)', fontSize: '13px', color: 'var(--cth-ink-700)', lineHeight: '1.6', marginBottom: '14px' }}>
+              Welcome to <strong style={{ color: 'var(--cth-ink-900)' }}>NETSHIELD Network Operations Center</strong>. This workspace models network attacks and recovery using graph algorithms.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {[
+                { icon: '🏢', title: 'Network Builder', desc: 'Pixel-art office floor — each worker = a network device. Click desks to configure nodes.' },
+                { icon: '🔥', title: 'Attack Simulation', desc: 'Model virus propagation (Worm, Scanner) using BFS/DFS graph traversals.' },
+                { icon: '🛡️', title: 'Recovery Planner', desc: 'Generate recovery routing using Dijkstra, Prim, Kruskal, and dynamic programming.' },
+                { icon: '📚', title: 'Learning Mode', desc: 'Review data structures, pseudo-codes, and mathematical complexity charts.' },
+              ].map((item) => (
+                <div key={item.title} style={{ padding: '10px', background: 'var(--cth-paper-100)', border: '1px solid var(--cth-ink-200)', borderLeft: '3px solid var(--cth-lemon)' }}>
+                  <div style={{ fontFamily: 'var(--cth-font-display)', fontSize: '8px', color: 'var(--cth-ink-900)', marginBottom: '4px' }}>{item.icon} {item.title}</div>
+                  <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: '11px', color: 'var(--cth-ink-500)' }}>{item.desc}</div>
                 </div>
-                <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
-                  <strong className="text-[#FD802E]">🐛 Attack Simulation</strong>
-                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Model propagation of viruses (Worm, Scanner) running BFS/DFS traversals.</p>
-                </div>
-                <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
-                  <strong className="text-[#FD802E]">🛡 Recovery Planner</strong>
-                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Generate recovery routing using Dijkstra, Prim, Kruskal, and dynamic algorithms.</p>
-                </div>
-                <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15">
-                  <strong className="text-[#FD802E]">📘 Learning Mode</strong>
-                  <p className="text-[#94A3B8] text-[10px] mt-0.5">Review data structures, pseudo-codes, and mathematical complexity charts.</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-          
-          <div className="border-t border-[#4B5563]/15 pt-3 mt-6 flex justify-between items-center text-[10px] font-mono text-[#94A3B8]">
+          <div style={{ borderTop: '1px dashed var(--cth-ink-300)', paddingTop: '10px', marginTop: '14px', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-ink-500)' }}>
             <span>Active Project: {totalNodes > 0 ? 'Loaded Network Graph' : 'Empty'}</span>
             <span>Security Status: {gradeInfo.status}</span>
           </div>

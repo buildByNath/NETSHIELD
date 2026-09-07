@@ -2,71 +2,209 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbars for clean NOC panel appearance */
+/* ─── Press Start 2P Pixel Font ─────────────────────────────────── */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/office/fonts/press-start-2p-latin-400.woff2') format('woff2');
+}
+
+/* ─── Retro Office Design Tokens ─────────────────────────────────── */
+:root {
+  /* Base — cream/parchment paper palette */
+  --cth-cream-50:  #FFFDF5;
+  --cth-cream-100: #FFF8E7;
+  --cth-cream-200: #F4E9C7;
+  --cth-cream-300: #E8D9A0;
+  --cth-paper-100: #FCFAF0;
+  --cth-paper-200: #F0EAD2;
+
+  /* Ink */
+  --cth-ink-900: #1A1320;
+  --cth-ink-700: #3D2E4A;
+  --cth-ink-500: #6B5878;
+  --cth-ink-300: #A899B5;
+  --cth-ink-100: #D9CFE0;
+
+  /* Accents */
+  --cth-coral: #D96A62;       --cth-coral-light: #F3D3CD;
+  --cth-mint:  #5CA97A;       --cth-mint-light:  #D2E7DA;
+  --cth-sky:   #4F9FAF;       --cth-sky-light:   #CFE5E9;
+  --cth-lemon: #DCAB3C;       --cth-lemon-light: #F3E4BC;
+  --cth-lilac: #9482D3;       --cth-lilac-light: #E0DAF2;
+  --cth-peach: #D99168;       --cth-peach-light: #F3DACA;
+
+  /* Status */
+  --cth-status-idle:     #A199AB;
+  --cth-status-thinking: #4F9FAF;
+  --cth-status-working:  #DCAB3C;
+  --cth-status-waiting:  #6D87D6;
+  --cth-status-blocked:  #D96A62;
+  --cth-status-success:  #5CA97A;
+  --cth-status-ghost:    #D9D3DE;
+
+  /* Spacing */
+  --cth-space-1: 4px;
+  --cth-space-2: 8px;
+  --cth-space-3: 12px;
+  --cth-space-4: 16px;
+  --cth-space-5: 24px;
+  --cth-space-6: 32px;
+  --cth-space-7: 48px;
+  --cth-space-8: 64px;
+
+  /* Typography */
+  --cth-font-display: "Press Start 2P", monospace;
+  --cth-font-ui:      "Inter", -apple-system, system-ui, sans-serif;
+  --cth-font-mono:    "JetBrains Mono", "Fira Code", monospace;
+
+  /* Shadow & Borders */
+  --cth-shadow-hard: 3px 3px 0 rgba(26, 19, 32, 0.14);
+  --cth-panel-border: inset 0 0 0 1px var(--cth-ink-300);
+}
+
+/* ─── Global Body Retro Reset ──────────────────────────────────── */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--cth-font-ui);
+  background-color: var(--cth-cream-50);
+  color: var(--cth-ink-900);
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ─── Custom Scrollbars (retro palette) ────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f1720;
+  background: var(--cth-paper-200);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #233d4c;
-  border-radius: 3px;
+  background: var(--cth-ink-300);
+  border-radius: 0px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #fd802e;
+  background: var(--cth-lemon);
 }
 
-/* React Flow customizations for custom style alignment */
+/* ─── React Flow customizations (retro palette) ─────────────────── */
 .react-flow__renderer {
-  background: #0f1720 !important;
+  background: var(--cth-paper-100) !important;
 }
 
 .react-flow__handle {
   width: 8px !important;
   height: 8px !important;
-  background: #fd802e !important;
-  border: 1.5px solid #0f1720 !important;
+  background: var(--cth-lemon) !important;
+  border: 2px solid var(--cth-ink-900) !important;
+  border-radius: 0 !important;
 }
 
 .react-flow__edge-path {
-  stroke: #4b5563 !important;
+  stroke: var(--cth-ink-300) !important;
   stroke-width: 2.5 !important;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #fd802e !important;
+  stroke: var(--cth-lemon) !important;
 }
 
 .react-flow__controls {
-  background: #233d4c !important;
-  border: 1px solid rgba(253, 128, 46, 0.2) !important;
-  border-radius: 4px !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+  background: var(--cth-paper-100) !important;
+  border: 2px solid var(--cth-ink-900) !important;
+  border-radius: 0px !important;
+  box-shadow: var(--cth-shadow-hard) !important;
 }
 
 .react-flow__controls-button {
-  background: #233d4c !important;
-  color: #f8fafc !important;
-  border-bottom: 1px solid #1b2838 !important;
-  fill: #f8fafc !important;
+  background: var(--cth-cream-100) !important;
+  color: var(--cth-ink-900) !important;
+  border-bottom: 1px solid var(--cth-ink-300) !important;
+  fill: var(--cth-ink-900) !important;
 }
 
 .react-flow__controls-button:hover {
-  background: #fd802e !important;
+  background: var(--cth-lemon) !important;
 }
 
 .react-flow__minimap {
-  background: #1b2838 !important;
-  border: 1px solid rgba(253, 128, 46, 0.2) !important;
-  border-radius: 4px !important;
+  background: var(--cth-paper-200) !important;
+  border: 2px solid var(--cth-ink-900) !important;
+  border-radius: 0 !important;
 }
 
-/* Custom packet flow dash animations */
+.react-flow__background {
+  background-color: var(--cth-paper-100) !important;
+}
+
+/* ─── Retro Pixel Panel ─────────────────────────────────────────── */
+.pixel-panel {
+  background: var(--cth-paper-100);
+  border: 2px solid var(--cth-ink-900);
+  box-shadow: var(--cth-shadow-hard);
+}
+
+.pixel-panel-title {
+  background: var(--cth-ink-900);
+  color: var(--cth-cream-50);
+  font-family: var(--cth-font-display);
+  font-size: 10px;
+  padding: 6px 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ─── Retro Pixel Button ────────────────────────────────────────── */
+.pixel-btn {
+  font-family: var(--cth-font-display);
+  font-size: 9px;
+  border: 2px solid var(--cth-ink-900);
+  box-shadow: 2px 2px 0 var(--cth-ink-900);
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  outline: none;
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.pixel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Retro Input / Select ─────────────────────────────────────── */
+.retro-input {
+  font-family: var(--cth-font-ui);
+  font-size: 12px;
+  background: var(--cth-paper-100);
+  border: 2px solid var(--cth-ink-900);
+  color: var(--cth-ink-900);
+  padding: 6px 8px;
+  outline: none;
+  box-shadow: inset 1px 1px 0 var(--cth-ink-100);
+}
+
+.retro-input:focus {
+  border-color: var(--cth-lemon);
+  box-shadow: 0 0 0 2px var(--cth-lemon-light), inset 1px 1px 0 var(--cth-ink-100);
+}
+
+/* ─── Custom packet flow dash animations ────────────────────────── */
 @keyframes flow-dash {
   to {
     stroke-dashoffset: -24;
@@ -76,5 +214,235 @@
 .stroke-dasharray-anim {
   stroke-dasharray: 8, 4;
   animation: flow-dash 1.2s linear infinite;
+}
+
+/* ─── Retro Blink Animation ─────────────────────────────────────── */
+@keyframes retro-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.retro-blink {
+  animation: retro-blink 1s step-end infinite;
+}
+
+/* ─── Status Indicator Dot ──────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ─── Retro Badge ───────────────────────────────────────────────── */
+.retro-badge {
+  font-family: var(--cth-font-display);
+  font-size: 7px;
+  padding: 2px 6px;
+  border: 1px solid var(--cth-ink-900);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Page Section Title ─────────────────────────────────────────── */
+.retro-section-title {
+  font-family: var(--cth-font-display);
+  font-size: 10px;
+  color: var(--cth-ink-900);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--cth-ink-900);
+}
+
+/* ─── Retro Card ─────────────────────────────────────────────────── */
+.retro-card {
+  background: var(--cth-paper-100);
+  border: 2px solid var(--cth-ink-300);
+  box-shadow: var(--cth-shadow-hard);
+  padding: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.retro-card:hover {
+  border-color: var(--cth-ink-700);
+  box-shadow: 4px 4px 0 rgba(26, 19, 32, 0.18);
+}
+
+/* ─── Retro Table ────────────────────────────────────────────────── */
+.retro-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--cth-font-ui);
+  font-size: 12px;
+}
+
+.retro-table th {
+  font-family: var(--cth-font-display);
+  font-size: 8px;
+  background: var(--cth-ink-900);
+  color: var(--cth-cream-50);
+  padding: 6px 8px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.retro-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--cth-ink-100);
+  color: var(--cth-ink-700);
+}
+
+.retro-table tr:hover td {
+  background: var(--cth-cream-100);
+}
+
+/* ─── Global Tailwind Class Overrides (Retro Theme) ─────────────────
+   These override the dark NOC palette classes used in all pages so we
+   don't need to touch every JSX file individually.
+ ─────────────────────────────────────────────────────────────────── */
+
+/* Root page containers */
+.bg-\[\#0F1720\] {
+  background-color: var(--cth-cream-50) !important;
+  color: var(--cth-ink-900) !important;
+}
+
+/* Panel / card backgrounds */
+.bg-\[\#233D4C\] {
+  background-color: var(--cth-paper-100) !important;
+}
+.bg-\[\#1B2838\] {
+  background-color: var(--cth-cream-100) !important;
+}
+.bg-\[\#233D4C\]\/30 {
+  background-color: rgba(252, 250, 240, 0.9) !important;
+}
+
+/* Borders */
+.border-\[\#4B5563\]\/25 {
+  border-color: var(--cth-ink-300) !important;
+}
+.border-\[\#4B5563\]\/10 {
+  border-color: var(--cth-ink-100) !important;
+}
+
+/* Text colors */
+.text-\[\#F8FAFC\] {
+  color: var(--cth-ink-900) !important;
+}
+.text-\[\#CBD5E1\] {
+  color: var(--cth-ink-700) !important;
+}
+.text-\[\#94A3B8\] {
+  color: var(--cth-ink-500) !important;
+}
+.text-\[\#4B5563\] {
+  color: var(--cth-ink-300) !important;
+}
+
+/* Accent colors: map old orange accent to lemon */
+.text-\[\#FD802E\] {
+  color: var(--cth-lemon) !important;
+}
+.bg-\[\#FD802E\]\/20 {
+  background-color: var(--cth-lemon-light) !important;
+}
+
+/* Code/log backgrounds */
+.bg-\[\#0F1720\]\/40,
+.bg-\[\#0F1720\]\/50 {
+  background-color: var(--cth-cream-100) !important;
+}
+
+/* Sidebar & secondary panels */
+.bg-\[\#1B2E3C\] {
+  background-color: var(--cth-ink-700) !important;
+}
+
+/* ReactFlow nodes get cream-on-ink retro treatment */
+.react-flow__node {
+  font-family: var(--cth-font-ui) !important;
+}
+
+/* Log/terminal areas — keep monospace but retro palette */
+.text-\[\#CBD5E1\].font-mono,
+.font-mono.text-\[\#CBD5E1\] {
+  color: var(--cth-ink-700) !important;
+}
+.text-emerald-400 {
+  color: var(--cth-mint) !important;
+}
+.text-red-500, .text-\[\#EF4444\] {
+  color: var(--cth-coral) !important;
+}
+.text-amber-500, .text-amber-400 {
+  color: var(--cth-lemon) !important;
+}
+.text-cyan-400 {
+  color: var(--cth-sky) !important;
+}
+.text-blue-400, .text-\[\#3B82F6\] {
+  color: var(--cth-sky) !important;
+}
+.text-\[\#22C55E\] {
+  color: var(--cth-mint) !important;
+}
+.bg-\[\#22C55E\] {
+  background-color: var(--cth-mint) !important;
+}
+.bg-\[\#EF4444\] {
+  background-color: var(--cth-coral) !important;
+}
+.bg-\[\#3B82F6\] {
+  background-color: var(--cth-sky) !important;
+}
+
+/* Border accent overrides */
+.border-\[\#FD802E\]\/40 {
+  border-color: var(--cth-lemon) !important;
+}
+.hover\:border-\[\#FD802E\]\/40:hover {
+  border-color: var(--cth-lemon) !important;
+}
+.hover\:text-\[\#FD802E\]:hover {
+  color: var(--cth-lemon) !important;
+}
+
+/* Input and form fields */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  font-family: var(--cth-font-ui) !important;
+  background: var(--cth-paper-100) !important;
+  color: var(--cth-ink-900) !important;
+  border: 2px solid var(--cth-ink-300) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--cth-lemon) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--cth-lemon-light) !important;
+}
+
+/* All buttons inherit retro font */
+button {
+  font-family: var(--cth-font-ui);
+}
+
+/* Rounded classes — override for sharper retro look */
+.rounded-xl, .rounded-lg, .rounded-md, .rounded {
+  border-radius: 0 !important;
+}
+
+/* Page section headings */
+h1, h2, h3, h4 {
+  font-family: var(--cth-font-ui);
+  color: var(--cth-ink-900);
 }
 

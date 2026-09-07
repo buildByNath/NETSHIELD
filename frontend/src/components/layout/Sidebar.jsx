@@ -1,73 +1,149 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { 
-  LayoutDashboard, Network, Flame, ShieldAlert, BookOpen, BarChart3, Activity, FileText, Settings, ChevronLeft, ChevronRight
+import {
+  LayoutDashboard, Network, Flame, ShieldAlert, BookOpen,
+  BarChart3, Activity, Settings, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 /**
  * File: Sidebar.jsx
- * Author: Antigravity AI
- * Purpose: NOC collapsible vertical navigation sidebar using Framer Motion animations.
+ * Purpose: Retro office-themed collapsible navigation sidebar.
+ * Uses --cth-* CSS variables for cream/ink palette.
  */
 
 export default function Sidebar({ activePage, setActivePage, collapsed, setCollapsed }) {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { id: 'builder', label: 'Network Builder', icon: <Network className="h-5 w-5" /> },
-    { id: 'attack', label: 'Attack Simulation', icon: <Flame className="h-5 w-5" /> },
-    { id: 'recovery', label: 'Recovery Planner', icon: <ShieldAlert className="h-5 w-5" /> },
-    { id: 'learning', label: 'Learning Mode', icon: <BookOpen className="h-5 w-5" /> },
-    { id: 'comparison', label: 'Comparison', icon: <BarChart3 className="h-5 w-5" /> },
-    { id: 'performance', label: 'Performance', icon: <Activity className="h-5 w-5" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> }
+    { id: 'dashboard',   label: 'Dashboard',         icon: <LayoutDashboard size={18} />, emoji: '📊' },
+    { id: 'builder',     label: 'Network Builder',   icon: <Network size={18} />,         emoji: '🏢' },
+    { id: 'attack',      label: 'Attack Simulation', icon: <Flame size={18} />,           emoji: '🔥' },
+    { id: 'recovery',    label: 'Recovery Planner',  icon: <ShieldAlert size={18} />,     emoji: '🛡️' },
+    { id: 'learning',    label: 'Learning Mode',     icon: <BookOpen size={18} />,        emoji: '📚' },
+    { id: 'comparison',  label: 'Comparison',        icon: <BarChart3 size={18} />,       emoji: '📊' },
+    { id: 'performance', label: 'Performance',       icon: <Activity size={18} />,        emoji: '📈' },
+    { id: 'settings',    label: 'Settings',          icon: <Settings size={18} />,        emoji: '⚙️' },
   ];
 
   return (
-    <motion.div
-      animate={{ width: collapsed ? 64 : 240 }}
-      transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="bg-[#233D4C] border-r border-[#4B5563]/30 h-[calc(100vh-4rem)] flex flex-col relative select-none flex-shrink-0"
+    <div
+      style={{
+        width: collapsed ? '56px' : '220px',
+        transition: 'width 0.2s ease',
+        background: 'var(--cth-ink-900)',
+        borderRight: '2px solid var(--cth-ink-700)',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}
     >
-      {/* Menu Navigation Items */}
-      <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 px-3">
+      {/* Section Label */}
+      {!collapsed && (
+        <div
+          style={{
+            fontFamily: 'var(--cth-font-display)',
+            fontSize: '7px',
+            color: 'var(--cth-ink-500)',
+            padding: '12px 14px 6px',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            borderBottom: '1px solid var(--cth-ink-700)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Navigation
+        </div>
+      )}
+
+      {/* Menu items */}
+      <div style={{ flex: 1, padding: '8px 6px', overflowY: 'auto', overflowX: 'hidden' }}>
         {menuItems.map((item) => {
           const isActive = activePage === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setActivePage(item.id)}
-              className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-sm font-semibold transition-colors duration-150 ${
-                isActive
-                  ? 'bg-[#FD802E] text-[#0F1720] font-bold shadow-[0_4px_10px_rgba(253,128,46,0.3)]'
-                  : 'text-[#CBD5E1] hover:bg-[#1B2838] hover:text-[#F8FAFC]'
-              }`}
+              title={collapsed ? item.label : undefined}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: collapsed ? '10px 0' : '9px 10px',
+                marginBottom: '2px',
+                background: isActive ? 'var(--cth-lemon)' : 'transparent',
+                color: isActive ? 'var(--cth-ink-900)' : 'var(--cth-ink-300)',
+                border: isActive ? '2px solid var(--cth-ink-900)' : '2px solid transparent',
+                boxShadow: isActive ? '2px 2px 0 var(--cth-ink-700)' : 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--cth-font-ui)',
+                fontSize: '13px',
+                fontWeight: isActive ? 700 : 500,
+                transition: 'all 0.1s ease',
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                textAlign: 'left',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'var(--cth-ink-700)';
+                  e.currentTarget.style.color = 'var(--cth-cream-50)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--cth-ink-300)';
+                }
+              }}
             >
-              <div className="flex-shrink-0">{item.icon}</div>
+              <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                {item.icon}
+              </span>
               {!collapsed && (
-                <motion.span
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  className="truncate"
-                >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.label}
-                </motion.span>
+                </span>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Collapse Sidebar Button Area */}
-      <div className="p-3 border-t border-[#4B5563]/25 flex justify-end">
+      {/* Collapse Toggle */}
+      <div
+        style={{
+          padding: '10px 6px',
+          borderTop: '2px solid var(--cth-ink-700)',
+          display: 'flex',
+          justifyContent: collapsed ? 'center' : 'flex-end',
+        }}
+      >
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg bg-[#0F1720] border border-[#4B5563]/30 text-[#94A3B8] hover:text-[#FD802E] hover:border-[#FD802E]/50 transition-colors"
-          title={collapsed ? "Expand Menu" : "Collapse Menu"}
+          style={{
+            background: 'var(--cth-ink-700)',
+            color: 'var(--cth-ink-300)',
+            border: '1px solid var(--cth-ink-500)',
+            padding: '4px 6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.1s ease',
+          }}
+          title={collapsed ? 'Expand Menu' : 'Collapse Menu'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--cth-lemon)';
+            e.currentTarget.style.borderColor = 'var(--cth-lemon)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--cth-ink-300)';
+            e.currentTarget.style.borderColor = 'var(--cth-ink-500)';
+          }}
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }

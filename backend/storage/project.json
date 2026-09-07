@@ -8,148 +8,288 @@
         "type": "Internet",
         "status": "healthy",
         "position": {
-          "x": 825.0,
+          "x": 600.0,
           "y": 50.0
         }
       },
       {
         "id": "FW-1",
-        "label": "Hospital Firewall",
+        "label": "Firewall",
         "type": "Firewall",
         "status": "healthy",
         "position": {
-          "x": 825.0,
-          "y": 130.0
+          "x": 600.0,
+          "y": 120.0
         }
       },
       {
         "id": "R-1",
-        "label": "Central Router",
+        "label": "Main Router",
         "type": "Router",
         "status": "healthy",
         "position": {
-          "x": 825.0,
-          "y": 210.0
+          "x": 600.0,
+          "y": 190.0
         }
       },
       {
-        "id": "SW-CLINIC",
-        "label": "Clinical Devices Switch",
-        "type": "Access Switch",
+        "id": "CSW-A",
+        "label": "Core Switch A",
+        "type": "Core Switch",
         "status": "healthy",
         "position": {
-          "x": 305.0,
-          "y": 300.0
+          "x": 300.0,
+          "y": 280.0
+        }
+      },
+      {
+        "id": "CSW-B",
+        "label": "Core Switch B",
+        "type": "Core Switch",
+        "status": "healthy",
+        "position": {
+          "x": 900.0,
+          "y": 280.0
         }
       },
       {
         "id": "SW-ADMIN",
-        "label": "Hospital Admin Switch",
+        "label": "Admin Access Switch",
         "type": "Access Switch",
         "status": "healthy",
         "position": {
-          "x": 920.0,
-          "y": 300.0
+          "x": 150.0,
+          "y": 400.0
         }
       },
       {
-        "id": "SW-PATIENT",
-        "label": "Patient Guest Switch",
+        "id": "SW-CSE",
+        "label": "CSE Dept Switch",
         "type": "Access Switch",
         "status": "healthy",
         "position": {
-          "x": 1345.0,
-          "y": 300.0
+          "x": 450.0,
+          "y": 400.0
         }
       },
       {
-        "id": "ICU-MON-1",
-        "label": "ICU Monitor 1",
-        "type": "PC",
-        "status": "healthy",
-        "position": {
-          "x": 50.0,
-          "y": 420.0
-        }
-      },
-      {
-        "id": "ICU-MON-2",
-        "label": "ICU Monitor 2",
-        "type": "PC",
-        "status": "healthy",
-        "position": {
-          "x": 220.0,
-          "y": 420.0
-        }
-      },
-      {
-        "id": "PHARM-PC",
-        "label": "Pharmacy Station",
-        "type": "Laptop",
-        "status": "healthy",
-        "position": {
-          "x": 390.0,
-          "y": 420.0
-        }
-      },
-      {
-        "id": "SRV-EMR",
-        "label": "Health Records Server",
-        "type": "Database Server",
-        "status": "healthy",
-        "position": {
-          "x": 601.579028081153,
-          "y": 458.2000959166992
-        }
-      },
-      {
-        "id": "ADM-PC-1",
-        "label": "Billing PC 1",
-        "type": "PC",
+        "id": "SW-ECE",
+        "label": "ECE Dept Switch",
+        "type": "Access Switch",
         "status": "healthy",
         "position": {
           "x": 750.0,
-          "y": 420.0
+          "y": 400.0
         }
       },
       {
-        "id": "ADM-PC-2",
-        "label": "Reception PC 2",
+        "id": "SW-LIB",
+        "label": "Library Switch",
+        "type": "Access Switch",
+        "status": "healthy",
+        "position": {
+          "x": 1050.0,
+          "y": 400.0
+        }
+      },
+      {
+        "id": "SW-SRV",
+        "label": "Server Room Switch",
+        "type": "Access Switch",
+        "status": "healthy",
+        "position": {
+          "x": 1350.0,
+          "y": 400.0
+        }
+      },
+      {
+        "id": "Admin-PC-1",
+        "label": "Admin PC 1",
+        "type": "Laptop",
+        "status": "healthy",
+        "position": {
+          "x": 30.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "Admin-PC-2",
+        "label": "Admin PC 2",
         "type": "PC",
         "status": "healthy",
         "position": {
-          "x": 920.0,
-          "y": 420.0
+          "x": 150.5528200343872,
+          "y": 690.3833742941858
         }
       },
       {
-        "id": "ADM-PRN",
-        "label": "Reception Printer",
-        "type": "Printer",
+        "id": "Admin-PC-3",
+        "label": "Admin PC 3",
+        "type": "PC",
         "status": "healthy",
         "position": {
-          "x": 1090.0,
-          "y": 420.0
+          "x": 190.0,
+          "y": 540.0
         }
       },
       {
-        "id": "PAT-AP-1",
-        "label": "Ward Wifi AP 1",
-        "type": "Wireless Access Point",
+        "id": "Admin-PC-4",
+        "label": "Admin PC 4",
+        "type": "PC",
         "status": "healthy",
         "position": {
-          "x": 1260.0,
-          "y": 420.0
+          "x": 313.9125715557516,
+          "y": 828.8096052320586
         }
       },
       {
-        "id": "PAT-AP-2",
-        "label": "Lobby Wifi AP 2",
-        "type": "Wireless Access Point",
+        "id": "CSE-PC-1",
+        "label": "CSE PC 1",
+        "type": "Laptop",
         "status": "healthy",
         "position": {
-          "x": 1430.0,
-          "y": 420.0
+          "x": 371.9661108519597,
+          "y": 687.0039726246537
+        }
+      },
+      {
+        "id": "CSE-PC-2",
+        "label": "CSE PC 2",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 430.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "CSE-PC-3",
+        "label": "CSE PC 3",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 503.24119666093543,
+          "y": 874.9656994485899
+        }
+      },
+      {
+        "id": "CSE-PC-4",
+        "label": "CSE PC 4",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 627.173418364855,
+          "y": 666.72756260746
+        }
+      },
+      {
+        "id": "ECE-PC-1",
+        "label": "ECE PC 1",
+        "type": "Laptop",
+        "status": "healthy",
+        "position": {
+          "x": 670.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "ECE-PC-2",
+        "label": "ECE PC 2",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 724.6544874785079,
+          "y": 776.5581168672587
+        }
+      },
+      {
+        "id": "ECE-PC-3",
+        "label": "ECE PC 3",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 830.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "ECE-PC-4",
+        "label": "ECE PC 4",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 879.5853849742095,
+          "y": 695.4524767984843
+        }
+      },
+      {
+        "id": "Library-PC-1",
+        "label": "Library PC 1",
+        "type": "Laptop",
+        "status": "healthy",
+        "position": {
+          "x": 990.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "Library-PC-2",
+        "label": "Library PC 2",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 1017.6192741222499,
+          "y": 832.3182444145411
+        }
+      },
+      {
+        "id": "Library-PC-3",
+        "label": "Library PC 3",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 1150.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "Library-PC-4",
+        "label": "Library PC 4",
+        "type": "PC",
+        "status": "healthy",
+        "position": {
+          "x": 1206.3441883132741,
+          "y": 690.383374294186
+        }
+      },
+      {
+        "id": "SRV-APP",
+        "label": "Application Server",
+        "type": "Application Server",
+        "status": "healthy",
+        "position": {
+          "x": 1310.0,
+          "y": 540.0
+        }
+      },
+      {
+        "id": "SRV-DB",
+        "label": "Database Server",
+        "type": "Database Server",
+        "status": "healthy",
+        "position": {
+          "x": 1376.4823933218713,
+          "y": 761.3508093543636
+        }
+      },
+      {
+        "id": "SRV-BAK",
+        "label": "Backup Server",
+        "type": "Backup Server",
+        "status": "healthy",
+        "position": {
+          "x": 1562.9335459121376,
+          "y": 533.2411966609354
         }
       }
     ],
@@ -159,98 +299,203 @@
         "target": "FW-1",
         "weight": 1.0,
         "latency": 1.0,
-        "bandwidth": 500.0
+        "bandwidth": 1000.0
       },
       {
         "source": "FW-1",
         "target": "R-1",
         "weight": 1.0,
         "latency": 2.0,
-        "bandwidth": 500.0
-      },
-      {
-        "source": "R-1",
-        "target": "SW-CLINIC",
-        "weight": 1.0,
-        "latency": 5.0,
         "bandwidth": 1000.0
       },
       {
         "source": "R-1",
-        "target": "SW-ADMIN",
+        "target": "CSW-A",
         "weight": 2.0,
         "latency": 5.0,
         "bandwidth": 1000.0
       },
       {
         "source": "R-1",
-        "target": "SW-PATIENT",
-        "weight": 5.0,
-        "latency": 15.0,
-        "bandwidth": 100.0
+        "target": "CSW-B",
+        "weight": 2.0,
+        "latency": 5.0,
+        "bandwidth": 1000.0
       },
       {
-        "source": "SW-CLINIC",
-        "target": "ICU-MON-1",
-        "weight": 1.0,
-        "latency": 2.0,
-        "bandwidth": 100.0
-      },
-      {
-        "source": "SW-CLINIC",
-        "target": "ICU-MON-2",
-        "weight": 1.0,
-        "latency": 2.0,
-        "bandwidth": 100.0
-      },
-      {
-        "source": "SW-CLINIC",
-        "target": "PHARM-PC",
-        "weight": 1.0,
-        "latency": 4.0,
-        "bandwidth": 100.0
-      },
-      {
-        "source": "SW-CLINIC",
-        "target": "SRV-EMR",
+        "source": "CSW-A",
+        "target": "CSW-B",
         "weight": 1.0,
         "latency": 1.0,
         "bandwidth": 1000.0
       },
       {
-        "source": "SW-ADMIN",
-        "target": "ADM-PC-1",
-        "weight": 1.0,
-        "latency": 8.0,
-        "bandwidth": 100.0
-      },
-      {
-        "source": "SW-ADMIN",
-        "target": "ADM-PC-2",
-        "weight": 1.0,
-        "latency": 8.0,
-        "bandwidth": 100.0
-      },
-      {
-        "source": "SW-ADMIN",
-        "target": "ADM-PRN",
-        "weight": 1.0,
+        "source": "CSW-A",
+        "target": "SW-ADMIN",
+        "weight": 2.0,
         "latency": 10.0,
         "bandwidth": 100.0
       },
       {
-        "source": "SW-PATIENT",
-        "target": "PAT-AP-1",
-        "weight": 1.0,
-        "latency": 20.0,
-        "bandwidth": 50.0
+        "source": "CSW-A",
+        "target": "SW-CSE",
+        "weight": 2.0,
+        "latency": 10.0,
+        "bandwidth": 100.0
       },
       {
-        "source": "SW-PATIENT",
-        "target": "PAT-AP-2",
+        "source": "CSW-B",
+        "target": "SW-ECE",
+        "weight": 2.0,
+        "latency": 10.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "CSW-B",
+        "target": "SW-LIB",
+        "weight": 2.0,
+        "latency": 10.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "CSW-B",
+        "target": "SW-SRV",
+        "weight": 2.0,
+        "latency": 5.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "Admin-PC-1",
         "weight": 1.0,
-        "latency": 22.0,
-        "bandwidth": 50.0
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "Admin-PC-2",
+        "weight": 1.0,
+        "latency": 7.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "Admin-PC-3",
+        "weight": 1.0,
+        "latency": 9.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ADMIN",
+        "target": "Admin-PC-4",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CSE",
+        "target": "CSE-PC-1",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CSE",
+        "target": "CSE-PC-2",
+        "weight": 1.0,
+        "latency": 7.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CSE",
+        "target": "CSE-PC-3",
+        "weight": 1.0,
+        "latency": 9.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-CSE",
+        "target": "CSE-PC-4",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ECE",
+        "target": "ECE-PC-1",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ECE",
+        "target": "ECE-PC-2",
+        "weight": 1.0,
+        "latency": 7.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ECE",
+        "target": "ECE-PC-3",
+        "weight": 1.0,
+        "latency": 9.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-ECE",
+        "target": "ECE-PC-4",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-LIB",
+        "target": "Library-PC-1",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-LIB",
+        "target": "Library-PC-2",
+        "weight": 1.0,
+        "latency": 7.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-LIB",
+        "target": "Library-PC-3",
+        "weight": 1.0,
+        "latency": 9.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-LIB",
+        "target": "Library-PC-4",
+        "weight": 1.0,
+        "latency": 5.0,
+        "bandwidth": 100.0
+      },
+      {
+        "source": "SW-SRV",
+        "target": "SRV-APP",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "SW-SRV",
+        "target": "SRV-DB",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 1000.0
+      },
+      {
+        "source": "SW-SRV",
+        "target": "SRV-BAK",
+        "weight": 1.0,
+        "latency": 2.0,
+        "bandwidth": 1000.0
       }
     ]
   },
@@ -260,8 +505,8 @@
   "metadata": {
     "projectName": "My Network Builder Graph",
     "author": "KTU DAA Student",
-    "createdDate": "2026-08-02T12:31:12.678Z",
-    "lastModified": "2026-08-02T12:31:12.678Z",
+    "createdDate": "2026-09-07T17:16:40.544Z",
+    "lastModified": "2026-09-07T17:16:40.544Z",
     "version": "1.0"
   }
 }

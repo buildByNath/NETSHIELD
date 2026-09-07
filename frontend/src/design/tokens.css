@@ -1,0 +1,76 @@
+/* Design tokens for Office Setup */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/press-start-2p-latin-400.woff2') format('woff2');
+}
+
+:root {
+  /* Base */
+  --cth-cream-50:  #FFFDF5;
+  --cth-cream-100: #FFF8E7;
+  --cth-cream-200: #F4E9C7;
+  --cth-cream-300: #E8D9A0;
+  --cth-paper-100: #FCFAF0;
+  --cth-paper-200: #F0EAD2;
+
+  /* Ink */
+  --cth-ink-900: #1A1320;
+  --cth-ink-700: #3D2E4A;
+  --cth-ink-500: #6B5878;
+  --cth-ink-300: #A899B5;
+  --cth-ink-100: #D9CFE0;
+
+  /* Accents */
+  --cth-coral: #D96A62;       --cth-coral-light: #F3D3CD;
+  --cth-mint:  #5CA97A;       --cth-mint-light:  #D2E7DA;
+  --cth-sky:   #4F9FAF;       --cth-sky-light:   #CFE5E9;
+  --cth-lemon: #DCAB3C;       --cth-lemon-light: #F3E4BC;
+  --cth-lilac: #9482D3;       --cth-lilac-light: #E0DAF2;
+  --cth-peach: #D99168;       --cth-peach-light: #F3DACA;
+
+  /* Status */
+  --cth-status-idle:     #A199AB;
+  --cth-status-thinking: #4F9FAF;
+  --cth-status-working:  #DCAB3C;
+  --cth-status-waiting:  #6D87D6;
+  --cth-status-blocked:  #D96A62;
+  --cth-status-success:  #5CA97A;
+  --cth-status-ghost:    #D9D3DE;
+
+  /* Spacing */
+  --cth-space-0: 0px;
+  --cth-space-1: 4px;
+  --cth-space-2: 8px;
+  --cth-space-3: 12px;
+  --cth-space-4: 16px;
+  --cth-space-5: 24px;
+  --cth-space-6: 32px;
+  --cth-space-7: 48px;
+  --cth-space-8: 64px;
+
+  /* Type */
+  --cth-font-display: "Press Start 2P", monospace;
+  --cth-font-ui:      "Inter", -apple-system, system-ui, sans-serif;
+  --cth-font-mono:    "JetBrains Mono", monospace;
+
+  /* Shadow & Borders */
+  --cth-shadow-hard: 3px 3px 0 rgba(26, 19, 32, 0.14);
+  --cth-panel-border: inset 0 0 0 1px var(--cth-ink-300);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--cth-font-ui);
+  background-color: var(--cth-cream-50);
+  color: var(--cth-ink-900);
+  user-select: none;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}

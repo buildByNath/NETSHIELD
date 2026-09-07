@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Shield } from 'lucide-react';
 import Sidebar from './components/layout/Sidebar';
 import Dashboard from './pages/Dashboard';
 import NetworkBuilder from './pages/NetworkBuilder';
@@ -13,98 +12,167 @@ import { useSimulation } from './context/SimulationContext';
 
 /**
  * File: App.jsx
- * Author: Antigravity AI
- * Purpose: Main application framework managing page states and nesting Sidebar layouts.
+ * Purpose: Main application framework — retro office theme applied globally.
  */
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const { syncGraph, saveActiveProject, saveStatus } = useSimulation();
 
-  // Sync and save active designed topology automatically on tab changes
   useEffect(() => {
     syncGraph();
     saveActiveProject();
   }, [activePage]);
 
-  // Page selection router mapping
   const renderActivePage = () => {
     switch (activePage) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'builder':
-        return <NetworkBuilder />;
-      case 'attack':
-        return <AttackSimulation />;
-      case 'recovery':
-        return <RecoveryPlanner />;
-      case 'learning':
-        return <LearningMode />;
-      case 'comparison':
-        return <Comparison />;
-      case 'performance':
-        return <Performance />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
+      case 'dashboard':  return <Dashboard />;
+      case 'builder':    return <NetworkBuilder />;
+      case 'attack':     return <AttackSimulation />;
+      case 'recovery':   return <RecoveryPlanner />;
+      case 'learning':   return <LearningMode />;
+      case 'comparison': return <Comparison />;
+      case 'performance':return <Performance />;
+      case 'settings':   return <Settings />;
+      default:           return <Dashboard />;
     }
   };
 
   return (
-    <div className="h-screen w-screen bg-[#0F1720] text-[#F8FAFC] flex flex-col overflow-hidden font-sans select-none">
-      {/* Central NOC System Header */}
-      <header className="h-16 border-b border-[#4B5563]/30 bg-[#233D4C]/30 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-25">
-        <div className="flex items-center gap-3">
-          <Shield className="h-7 w-7 text-[#FD802E] animate-pulse" />
+    <div
+      style={{
+        height: '100vh',
+        width: '100vw',
+        background: 'var(--cth-cream-50)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: 'var(--cth-font-ui)',
+        color: 'var(--cth-ink-900)',
+        userSelect: 'none',
+      }}
+    >
+      {/* ── Retro Office Header Bar ────────────────────────────────── */}
+      <header
+        style={{
+          height: '48px',
+          background: 'var(--cth-ink-900)',
+          color: 'var(--cth-cream-50)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px',
+          borderBottom: '3px solid var(--cth-lemon)',
+          flexShrink: 0,
+          zIndex: 100,
+        }}
+      >
+        {/* Left: Logo & Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <span style={{ fontSize: '18px' }}>🛡️</span>
           <div>
-            <h1 className="text-xl font-black tracking-wider text-[#F8FAFC] flex items-center gap-2 leading-none">
+            <div
+              style={{
+                fontFamily: 'var(--cth-font-display)',
+                fontSize: '11px',
+                color: 'var(--cth-lemon)',
+                letterSpacing: '2px',
+                lineHeight: '1.2',
+              }}
+            >
               NETSHIELD
-              <span className="text-[9px] uppercase font-mono tracking-widest bg-[#FD802E]/20 text-[#FD802E] px-2 py-0.5 rounded border border-[#FD802E]/30 font-bold">
-                NOC Console
-              </span>
-            </h1>
-            <p className="text-[10px] text-[#94A3B8] tracking-wide mt-0.5 leading-none">
-              Network Attack Simulation & Response Planner
-            </p>
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--cth-font-display)',
+                fontSize: '6px',
+                color: 'var(--cth-ink-300)',
+                letterSpacing: '1px',
+                marginTop: '2px',
+              }}
+            >
+              Network Attack Simulation & Response
+            </div>
           </div>
+
+          {/* NOC Badge */}
+          <span
+            style={{
+              fontFamily: 'var(--cth-font-display)',
+              fontSize: '7px',
+              background: 'var(--cth-mint)',
+              color: 'var(--cth-ink-900)',
+              padding: '2px 8px',
+              border: '1px solid var(--cth-ink-700)',
+            }}
+          >
+            NOC CONSOLE
+          </span>
         </div>
-        
-        {/* Active view status & Global Save */}
-        <div className="flex items-center gap-4 text-xs font-mono">
+
+        {/* Right: Active module + Save */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
+            style={{
+              fontFamily: 'var(--cth-font-display)',
+              fontSize: '7px',
+              color: 'var(--cth-ink-300)',
+            }}
+          >
+            ACTIVE:
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--cth-font-display)',
+              fontSize: '8px',
+              color: 'var(--cth-lemon)',
+              background: 'var(--cth-ink-700)',
+              padding: '2px 8px',
+              border: '1px solid var(--cth-ink-500)',
+              textTransform: 'uppercase',
+            }}
+          >
+            {activePage === 'builder' ? 'Network Builder' : activePage}
+          </span>
+
+          <div style={{ width: '1px', height: '20px', background: 'var(--cth-ink-500)' }} />
+
           <button
             onClick={saveActiveProject}
             disabled={saveStatus === 'saving'}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FD802E] hover:bg-[#FF9C4A] text-[#0F1720] font-bold text-xs rounded border border-[#FD802E]/30 transition-colors font-sans shadow-md disabled:opacity-50"
+            style={{
+              fontFamily: 'var(--cth-font-display)',
+              fontSize: '8px',
+              background: saveStatus === 'saved' ? 'var(--cth-mint)' : saveStatus === 'error' ? 'var(--cth-coral)' : 'var(--cth-lemon)',
+              color: 'var(--cth-ink-900)',
+              border: '2px solid var(--cth-ink-900)',
+              boxShadow: '2px 2px 0 var(--cth-ink-900)',
+              padding: '4px 12px',
+              cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer',
+              opacity: saveStatus === 'saving' ? 0.6 : 1,
+              transition: 'all 0.1s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
             title="Save changes to backend database"
           >
-            <Shield className="h-3.5 w-3.5" />
-            <span>{saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error!' : 'Save Project'}</span>
+            💾 {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error!' : 'Save Project'}
           </button>
-          
-          <div className="h-4 w-[1px] bg-[#4B5563]/30"></div>
-
-          <span className="text-[#94A3B8]">Active Module:</span>
-          <span className="px-2 py-0.5 rounded bg-[#FD802E]/10 text-[#FD802E] border border-[#FD802E]/25 uppercase font-bold tracking-wider font-sans">
-            {activePage === 'builder' ? 'Network Builder' : activePage}
-          </span>
         </div>
       </header>
 
-      {/* Main viewport area splitting sidebar and body panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Navigation Sidebar Panel */}
-        <Sidebar 
-          activePage={activePage} 
-          setActivePage={setActivePage} 
-          collapsed={sidebarCollapsed} 
-          setCollapsed={setSidebarCollapsed} 
+      {/* ── Main Layout ──────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <Sidebar
+          activePage={activePage}
+          setActivePage={setActivePage}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
         />
 
-        {/* Dynamic page content container */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
           {renderActivePage()}
         </div>
       </div>
