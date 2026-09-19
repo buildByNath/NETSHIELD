@@ -65,8 +65,8 @@ body {
   margin: 0;
   padding: 0;
   font-family: var(--cth-font-ui);
-  background-color: var(--cth-cream-50);
-  color: var(--cth-ink-900);
+  background-color: var(--cth-ink-900, #141923);
+  color: var(--cth-cream-50, #F8FAFC);
   user-select: none;
   overflow: hidden;
 }

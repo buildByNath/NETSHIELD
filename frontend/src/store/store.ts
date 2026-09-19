@@ -34,6 +34,7 @@ export interface OfficeState {
   benchCandidates: BenchCandidate[];
   selectedAgentId: string | null;
   activeDeskMenu: { deskIndex: number; deskTile: { x: number; y: number }; agentId?: string } | null;
+  hoverDeskInfo: { deskIndex: number; agentId?: string; screenX: number; screenY: number } | null;
   officeTheme: string;
   addAgent: (agent: Omit<Agent, 'id' | 'doneTasksCount'>) => void;
   hireFromBench: (candidateName: string, role: string) => void;
@@ -45,6 +46,8 @@ export interface OfficeState {
   setAgentSeated: (id: string, isSeated: boolean) => void;
   openDeskMenu: (deskIndex: number, deskTile: { x: number; y: number }, agentId?: string) => void;
   closeDeskMenu: () => void;
+  openHoverDesk: (deskIndex: number, agentId: string | undefined, screenX: number, screenY: number) => void;
+  closeHoverDesk: () => void;
   setOfficeTheme: (theme: string) => void;
 }
 
@@ -193,6 +196,7 @@ export const useStore = create<OfficeState>((set) => ({
   benchCandidates: INITIAL_BENCH_CANDIDATES,
   selectedAgentId: 'agent-aarav',
   activeDeskMenu: null,
+  hoverDeskInfo: null,
   officeTheme: 'office',
 
   addAgent: (agent) =>
@@ -286,6 +290,11 @@ export const useStore = create<OfficeState>((set) => ({
     }),
 
   closeDeskMenu: () => set({ activeDeskMenu: null }),
+
+  openHoverDesk: (deskIndex, agentId, screenX, screenY) =>
+    set({ hoverDeskInfo: { deskIndex, agentId, screenX, screenY } }),
+
+  closeHoverDesk: () => set({ hoverDeskInfo: null }),
 
   setOfficeTheme: (theme) => set({ officeTheme: theme }),
 }));

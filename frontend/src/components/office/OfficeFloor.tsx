@@ -705,9 +705,34 @@ export function OfficeFloor() {
         return scr;
       };
 
-      // Desk Click Event Handler & Floor Click
+      // Desk Hover (pointerover) — opens quick info tooltip
       const floorBg = mapRenderer.getContainer();
       floorBg.eventMode = 'static';
+
+      floorBg.on('pointermove', (ev) => {
+        const local = world.toLocal(ev.global);
+        const tile = mapRenderer.pixelToTile(local.x, local.y);
+        let hoveredDesk = false;
+        for (let i = 0; i < seatTiles.length; i++) {
+          const st = seatTiles[i];
+          if (Math.abs(st.x - tile.x) <= 1 && Math.abs(st.y - tile.y) <= 1) {
+            const assignedEntry = Array.from(runtimes.entries()).find(([, rt]) => rt.seatIndex === i);
+            const assignedAgentId = assignedEntry ? assignedEntry[0] : undefined;
+            useStore.getState().openHoverDesk(i, assignedAgentId, ev.global.x, ev.global.y);
+            hoveredDesk = true;
+            break;
+          }
+        }
+        if (!hoveredDesk) {
+          useStore.getState().closeHoverDesk();
+        }
+      });
+
+      floorBg.on('pointerout', () => {
+        useStore.getState().closeHoverDesk();
+      });
+
+      // Desk Click (pointertap) — opens full control modal on desk click
       floorBg.on('pointertap', (ev) => {
         const local = world.toLocal(ev.global);
         const tile = mapRenderer.pixelToTile(local.x, local.y);

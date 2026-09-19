@@ -304,41 +304,50 @@ async def save_project(payload: ProjectState):
 async def load_project():
     """
     Load the project configuration JSON file from local disk. 
-    If no file is found, returns default College Campus template setup.
+    If no file is found or if the network has 0 nodes, returns default Office Setup template.
     """
     file_path = os.path.join(STORAGE_DIR, "project.json")
-    if not os.path.exists(file_path):
-        # Fall back to college campus default
-        college_graph = get_template_graph("college")
-        default_project = {
-            "project": {},
-            "network": college_graph,
-            "simulation": {},
-            "recovery": {},
-            "settings": {},
-            "metadata": {
-                "projectName": "College Campus",
-                "author": "System Default",
-                "createdDate": "2026-07-18",
-                "lastModified": "2026-07-18",
-                "version": "1.0"
-            }
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r") as f:
+                data = json.load(f)
+            nodes = data.get("network", {}).get("nodes", [])
+            if nodes and len(nodes) > 0:
+                return {
+                    "success": True,
+                    "project": data
+                }
+        except Exception:
+            pass
+            
+    # Fall back to office setup default
+    office_graph = get_template_graph("office")
+    default_project = {
+        "project": {},
+        "network": office_graph,
+        "simulation": {},
+        "recovery": {},
+        "settings": {},
+        "metadata": {
+            "projectName": "Office Setup Network",
+            "author": "System Default",
+            "createdDate": "2026-09-18",
+            "lastModified": "2026-09-18",
+            "version": "1.0"
         }
-        return {
-            "success": True,
-            "project": default_project,
-            "message": "No existing project file found. Loaded default college template."
-        }
-        
+    }
     try:
-        with open(file_path, "r") as f:
-            data = json.load(f)
-        return {
-            "success": True,
-            "project": data
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load project: {str(e)}")
+        os.makedirs(STORAGE_DIR, exist_ok=True)
+        with open(file_path, "w") as f:
+            json.dump(default_project, f, indent=2)
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "project": default_project,
+        "message": "Loaded default office setup template."
+    }
 
 
 

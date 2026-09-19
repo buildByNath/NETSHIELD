@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Activity, Play, Pause, RotateCcw, Cpu, HardDrive, Clock, Layers, Shield, RefreshCw, ShieldAlert } from 'lucide-react';
-import { projectService, algorithmService } from '../services/api';
+import { projectService, algorithmService, templateService } from '../services/api';
 import { useSimulation } from '../context/SimulationContext';
 
 /**
@@ -71,14 +71,30 @@ export default function Performance() {
       
       const draftStr = localStorage.getItem('netshield_autosave');
       if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        loadedNodes = draft.nodes || [];
-        loadedEdges = draft.edges || [];
-      } else {
+        try {
+          const draft = JSON.parse(draftStr);
+          if (draft.nodes && Array.isArray(draft.nodes) && draft.nodes.length > 0) {
+            loadedNodes = draft.nodes;
+            loadedEdges = draft.edges || [];
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      if (loadedNodes.length === 0) {
         const response = await projectService.loadProject();
         if (response.success && response.project && response.project.network) {
           loadedNodes = response.project.network.nodes || [];
           loadedEdges = response.project.network.edges || [];
+        }
+      }
+
+      if (loadedNodes.length === 0) {
+        const tmpl = await templateService.loadTemplate('office');
+        if (tmpl.success && tmpl.graph) {
+          loadedNodes = tmpl.graph.nodes || [];
+          loadedEdges = tmpl.graph.edges || [];
         }
       }
       setLocalNodes(loadedNodes);

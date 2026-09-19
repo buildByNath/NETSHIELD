@@ -22,7 +22,6 @@ export default function App() {
 
   useEffect(() => {
     syncGraph();
-    saveActiveProject();
   }, [activePage]);
 
   const renderActivePage = () => {
@@ -44,12 +43,12 @@ export default function App() {
       style={{
         height: '100vh',
         width: '100vw',
-        background: 'var(--cth-cream-50)',
+        background: 'var(--cth-ink-900)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         fontFamily: 'var(--cth-font-ui)',
-        color: 'var(--cth-ink-900)',
+        color: 'var(--cth-cream-50)',
         userSelect: 'none',
       }}
     >

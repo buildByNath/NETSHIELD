@@ -1,5 +1,56 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { projectService, algorithmService } from '../services/api';
+import { projectService, algorithmService, templateService } from '../services/api';
+
+// ── Office network template v2 — 1 Server · 2 Routers · 2 Switches · 8 named desks ──
+const OFFICE_TEMPLATE_VERSION = 'office_v2';
+const OFFICE_TEMPLATE_NODES = [
+  // ── Core Internet & Security ──────────────────────────────────────────────────
+  { id: 'NET-1',  type: 'Internet',          position: { x: 500, y: 30  }, data: { label: 'Internet Gateway',          status: 'healthy' } },
+  { id: 'FW-1',   type: 'Firewall',           position: { x: 500, y: 130 }, data: { label: 'Office Firewall',           status: 'healthy' } },
+  // ── Routing Layer (2 Routers) ─────────────────────────────────────────────────
+  { id: 'R-1',    type: 'Router',             position: { x: 200, y: 260 }, data: { label: 'Router A (Floor 1)',        status: 'healthy' } },
+  { id: 'R-2',    type: 'Router',             position: { x: 800, y: 260 }, data: { label: 'Router B (Floor 2)',        status: 'healthy' } },
+  // ── Server ───────────────────────────────────────────────────────────────────
+  { id: 'SRV-1',  type: 'Application Server', position: { x: 500, y: 260 }, data: { label: 'Main Server',               status: 'healthy' } },
+  // ── Switching Layer (2 Switches) ──────────────────────────────────────────────
+  { id: 'SW-1',   type: 'Access Switch',      position: { x: 100, y: 400 }, data: { label: 'Switch 1 (Dev & Design)',   status: 'healthy' } },
+  { id: 'SW-2',   type: 'Access Switch',      position: { x: 700, y: 400 }, data: { label: 'Switch 2 (Ops & Admin)',    status: 'healthy' } },
+  // ── Workstations — Floor 1 (Switch 1) ────────────────────────────────────────
+  { id: 'PC-1',   type: 'PC',                 position: { x: 0,   y: 540 }, data: { label: "Aarav's Desk",             status: 'healthy' } },
+  { id: 'PC-2',   type: 'PC',                 position: { x: 120, y: 540 }, data: { label: "Arjun's Desk",             status: 'healthy' } },
+  { id: 'PC-3',   type: 'Laptop',             position: { x: 240, y: 540 }, data: { label: "Ananya's Desk",            status: 'healthy' } },
+  { id: 'PC-4',   type: 'PC',                 position: { x: 360, y: 540 }, data: { label: "Rahul's Desk",             status: 'healthy' } },
+  // ── Workstations — Floor 2 (Switch 2) ────────────────────────────────────────
+  { id: 'PC-5',   type: 'PC',                 position: { x: 580, y: 540 }, data: { label: "Rohan's Desk",             status: 'healthy' } },
+  { id: 'PC-6',   type: 'PC',                 position: { x: 700, y: 540 }, data: { label: "Aadhya's Desk",            status: 'healthy' } },
+  { id: 'PC-7',   type: 'PC',                 position: { x: 820, y: 540 }, data: { label: "Aditya's Desk",            status: 'healthy' } },
+  { id: 'PC-8',   type: 'Laptop',             position: { x: 940, y: 540 }, data: { label: "Dhruv's Desk",             status: 'healthy' } },
+];
+const OFFICE_TEMPLATE_EDGES = [
+  // Internet → Firewall
+  { id: 'e-NET-1-FW-1',  source: 'NET-1', target: 'FW-1',  type: 'customEdge', data: { weight: 1, latency: 1,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  // Firewall → Both Routers
+  { id: 'e-FW-1-R-1',    source: 'FW-1',  target: 'R-1',   type: 'customEdge', data: { weight: 1, latency: 2,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  { id: 'e-FW-1-R-2',    source: 'FW-1',  target: 'R-2',   type: 'customEdge', data: { weight: 1, latency: 2,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  // Both Routers → Main Server
+  { id: 'e-R-1-SRV-1',   source: 'R-1',   target: 'SRV-1', type: 'customEdge', data: { weight: 2, latency: 3,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  { id: 'e-R-2-SRV-1',   source: 'R-2',   target: 'SRV-1', type: 'customEdge', data: { weight: 2, latency: 3,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  // Inter-Router redundancy link
+  { id: 'e-R-1-R-2',     source: 'R-1',   target: 'R-2',   type: 'customEdge', data: { weight: 3, latency: 4,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  // Routers → Switches
+  { id: 'e-R-1-SW-1',    source: 'R-1',   target: 'SW-1',  type: 'customEdge', data: { weight: 1, latency: 3,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  { id: 'e-R-2-SW-2',    source: 'R-2',   target: 'SW-2',  type: 'customEdge', data: { weight: 1, latency: 3,  bandwidth: 1000, isSimulation: false, isRecovery: false } },
+  // Switch 1 → Floor 1 Desks
+  { id: 'e-SW-1-PC-1',   source: 'SW-1',  target: 'PC-1',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-1-PC-2',   source: 'SW-1',  target: 'PC-2',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-1-PC-3',   source: 'SW-1',  target: 'PC-3',  type: 'customEdge', data: { weight: 1, latency: 6,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-1-PC-4',   source: 'SW-1',  target: 'PC-4',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  // Switch 2 → Floor 2 Desks
+  { id: 'e-SW-2-PC-5',   source: 'SW-2',  target: 'PC-5',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-2-PC-6',   source: 'SW-2',  target: 'PC-6',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-2-PC-7',   source: 'SW-2',  target: 'PC-7',  type: 'customEdge', data: { weight: 1, latency: 5,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+  { id: 'e-SW-2-PC-8',   source: 'SW-2',  target: 'PC-8',  type: 'customEdge', data: { weight: 1, latency: 6,  bandwidth: 100,  isSimulation: false, isRecovery: false } },
+];
 
 /**
  * File: SimulationContext.jsx
@@ -75,11 +126,19 @@ export function SimulationProvider({ children }) {
   const [nodeSimStates, setNodeSimStates] = useState({});
   const [activePulses, setActivePulses] = useState([]);
   const [isolatedEdges, setIsolatedEdges] = useState({});
+  // Set of edge keys "source->target" that the virus has already traversed — persistent trail
+  const [traversedEdges, setTraversedEdges] = useState(new Set());
   const [blockedCount, setBlockedCount] = useState(0);
   const [savedCount, setSavedCount] = useState(0);
 
   const simQueueRef = useRef([]);
   const simStackRef = useRef([]);
+  // Ref that always holds the latest nodeSimStates — prevents stale closures in setTimeout/setInterval callbacks
+  const nodeSimStatesRef = useRef({});
+  // Ref that always holds the latest finalResult for recovery propagation
+  const finalResultRef = useRef({});
+  // Visited Set for DFS — tracks which nodes have been pushed to stack (separate from React state)
+  const dfsVisitedRef = useRef(new Set());
 
   // Playback Control States
   const [timeline, setTimeline] = useState([]);
@@ -97,6 +156,16 @@ export function SimulationProvider({ children }) {
   
   const playbackInterval = useRef(null);
 
+  // Keep nodeSimStatesRef in sync so setTimeout/setInterval callbacks always read current state
+  useEffect(() => {
+    nodeSimStatesRef.current = nodeSimStates;
+  }, [nodeSimStates]);
+
+  // Keep finalResultRef in sync
+  useEffect(() => {
+    finalResultRef.current = finalResult;
+  }, [finalResult]);
+
   // Load baseline active graph
   const loadGraph = async () => {
     if (mode === 'simulation' || mode === 'recovery' || isPlaying) {
@@ -110,28 +179,85 @@ export function SimulationProvider({ children }) {
       
       const draftStr = localStorage.getItem('netshield_autosave');
       if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        loadedNodes = draft.nodes || [];
-        loadedEdges = draft.edges || [];
-      } else {
+        try {
+          const draft = JSON.parse(draftStr);
+
+          // College template fingerprint — node IDs that only appear in the college topology
+          const COLLEGE_NODE_IDS = new Set(['CSW-A', 'CSW-B', 'SW-ADMIN', 'SW-CSE', 'SW-ECE', 'SW-LIB', 'SW-SRV']);
+          const isCollegeTemplate =
+            draft.template === 'college' ||
+            (Array.isArray(draft.nodes) &&
+              draft.nodes.some(n => COLLEGE_NODE_IDS.has(n.id)));
+
+          if (isCollegeTemplate) {
+            // Stale college topology in cache — wipe it so the correct network loads
+            console.log('[SimulationContext] College template detected in localStorage — clearing stale cache.');
+            localStorage.removeItem('netshield_autosave');
+          } else if (draft.templateVersion !== OFFICE_TEMPLATE_VERSION && draft.template === 'office') {
+            // Old office template version — upgrade to latest
+            console.log('[SimulationContext] Old office template detected — upgrading to', OFFICE_TEMPLATE_VERSION);
+            localStorage.removeItem('netshield_autosave');
+          } else if (draft.nodes && Array.isArray(draft.nodes) && draft.nodes.length > 0) {
+            loadedNodes = draft.nodes;
+            loadedEdges = draft.edges || [];
+          }
+        } catch (e) {
+          console.error('Failed to parse autosave draft', e);
+        }
+      }
+      
+      if (loadedNodes.length === 0) {
         const response = await projectService.loadProject();
         if (response.success && response.project && response.project.network) {
           const net = response.project.network;
-          loadedNodes = (net.nodes || []).map(n => ({
-            id: n.id,
-            type: n.type,
-            position: n.position,
-            data: { label: n.label, status: n.status || 'healthy' }
-          }));
-          
-          loadedEdges = (net.edges || []).map(e => ({
-            id: `e-${e.source}-${e.target}`,
-            source: e.source,
-            target: e.target,
-            type: 'customEdge',
-            data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
-          }));
+          if (net.nodes && net.nodes.length > 0) {
+            loadedNodes = (net.nodes || []).map(n => ({
+              id: n.id,
+              type: n.type,
+              position: n.position,
+              data: { label: n.label, status: n.status || 'healthy' }
+            }));
+            
+            loadedEdges = (net.edges || []).map(e => ({
+              id: `e-${e.source}-${e.target}`,
+              source: e.source,
+              target: e.target,
+              type: 'customEdge',
+              data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
+            }));
+          }
         }
+      }
+
+      // If still empty, fall back directly to the hardcoded office setup template
+      if (loadedNodes.length === 0) {
+        try {
+          const tmpl = await templateService.loadTemplate('office');
+          if (tmpl.success && tmpl.graph) {
+            loadedNodes = (tmpl.graph.nodes || []).map(n => ({
+              id: n.id,
+              type: n.type,
+              position: n.position,
+              data: { label: n.label, status: n.status || 'healthy' }
+            }));
+            loadedEdges = (tmpl.graph.edges || []).map(e => ({
+              id: `e-${e.source}-${e.target}`,
+              source: e.source,
+              target: e.target,
+              type: 'customEdge',
+              data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
+            }));
+          }
+        } catch (tmplErr) {
+          console.warn('Template API unavailable, using hardcoded office template', tmplErr);
+        }
+      }
+
+      // Absolute last resort: use the hardcoded office template embedded in this file
+      if (loadedNodes.length === 0) {
+        loadedNodes = OFFICE_TEMPLATE_NODES;
+        loadedEdges = OFFICE_TEMPLATE_EDGES;
+        console.log('[SimulationContext] Loaded hardcoded office template as final fallback');
       }
 
       // Format healthy status
@@ -151,6 +277,21 @@ export function SimulationProvider({ children }) {
       setNodes(healthyNodes);
       setEdges(formattedEdges);
 
+      // Persist to localStorage so other pages share the same loaded graph immediately
+      try {
+        const existing = localStorage.getItem('netshield_autosave');
+        const existingParsed = existing ? JSON.parse(existing) : {};
+        if (!existingParsed.nodes || existingParsed.nodes.length === 0) {
+          localStorage.setItem('netshield_autosave', JSON.stringify({
+            ...existingParsed,
+            nodes: healthyNodes,
+            edges: formattedEdges,
+            template: 'office',
+            templateVersion: OFFICE_TEMPLATE_VERSION
+          }));
+        }
+      } catch (e) { /* ignore storage errors */ }
+
       // Pre-select default recovery source: prefer any healthy Server type
       const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
       const serverNode = healthyNodes.find(n => SERVER_TYPES.includes(n.type));
@@ -164,6 +305,12 @@ export function SimulationProvider({ children }) {
         } else if (healthyNodes.length > 0) {
           setRecoverySource(healthyNodes[0].id);
         }
+      }
+
+      if (healthyNodes.length > 0) {
+        const defaultWorkstation = healthyNodes.find(n => n.type === 'PC' || n.type === 'Laptop') || healthyNodes[0];
+        setStartNodes(prev => (prev.length === 0 ? [defaultWorkstation.id] : prev));
+        setRecoveryTarget(prev => (!prev ? defaultWorkstation.id : prev));
       }
 
       setSimulationStatus('idle');
@@ -241,50 +388,51 @@ export function SimulationProvider({ children }) {
   };
 
   // Traversal search expansion logic
+  // NOTE: reads from nodeSimStatesRef.current (always fresh) to avoid stale closure bugs
   const propagateFromNode = (n, currentQueue, currentStack) => {
+    const simStates = nodeSimStatesRef.current;
+
     // Check if current node is isolated or recovered
-    if (nodeSimStates[n]?.isIsolated || nodeSimStates[n]?.status === 'recovered') {
+    if (simStates[n]?.isIsolated || simStates[n]?.status === 'recovered') {
       return;
     }
 
-    // 1. Find all active neighbors
+    // 1. Find all active neighbors (undirected — check both source and target)
     const activeEdgesList = originalEdges.filter(e => {
-      const isSrcIsolated = nodeSimStates[e.source]?.isIsolated;
-      const isDstIsolated = nodeSimStates[e.target]?.isIsolated;
+      const isSrcIsolated = simStates[e.source]?.isIsolated;
+      const isDstIsolated = simStates[e.target]?.isIsolated;
       return !isSrcIsolated && !isDstIsolated && (e.source === n || e.target === n);
     });
 
     const neighbors = activeEdgesList.map(e => e.source === n ? e.target : e.source);
 
     if (algoId === 'bfs' || algoId === 'multi_bfs') {
-      let expandedCount = 0;
       neighbors.forEach(v => {
-        const vState = nodeSimStates[v] || { status: 'healthy', progress: 0, isIsolated: false };
-        if (vState.status === 'healthy' && !vState.isIsolated) {
-          const alreadyQueued = activePulses.some(p => p.target === v) || currentQueue.includes(v);
-          if (!alreadyQueued) {
-            expandedCount++;
-            const pulseId = `att-${n}-${v}-${Date.now()}`;
-            setActivePulses(prev => [...prev, {
-              id: pulseId,
-              type: 'attack',
-              source: n,
-              target: v,
-              progress: 0
-            }]);
-            
-            currentQueue.push(v);
-            
-            setTimeout(() => {
-              logTimelineEvent(
-                `Threat propagating from ${n} to ${v}`,
-                `The virus has compromised ${n} and is now travelling along the link towards ${v}.`,
-                n,
-                [n, v]
-              );
-            }, 0);
-          }
-        } else if (vState.isIsolated) {
+        const vState = simStates[v] || { status: 'healthy', progress: 0, isIsolated: false };
+        // Use queue ref for dedup — don't rely on stale activePulses closure
+        const alreadyQueued = simQueueRef.current.includes(v);
+        if (vState.status === 'healthy' && !vState.isIsolated && !alreadyQueued) {
+          const pulseId = `att-${n}-${v}-${Date.now()}`;
+          setActivePulses(prev => [...prev, {
+            id: pulseId,
+            type: 'attack',
+            source: n,
+            target: v,
+            progress: 0
+          }]);
+
+          currentQueue.push(v);
+          simQueueRef.current = currentQueue;
+
+          setTimeout(() => {
+            logTimelineEvent(
+              `Threat propagating from ${n} to ${v}`,
+              `The virus has compromised ${n} and is now travelling along the link towards ${v}.`,
+              n,
+              [n, v]
+            );
+          }, 0);
+        } else if (vState.isIsolated && !alreadyQueued) {
           setBlockedCount(prev => prev + 1);
           setTimeout(() => {
             logTimelineEvent(
@@ -297,15 +445,21 @@ export function SimulationProvider({ children }) {
         }
       });
 
-      // Update current queue tracking
-      simQueueRef.current = currentQueue;
     } else if (algoId === 'dfs') {
+      // Use dfsVisitedRef to track visited nodes — immune to stale closure
+      const visited = dfsVisitedRef.current;
+
       const nextNeighbor = neighbors.find(v => {
-        const vState = nodeSimStates[v] || { status: 'healthy', progress: 0, isIsolated: false };
-        return vState.status === 'healthy' && !vState.isIsolated;
+        const vState = simStates[v] || { status: 'healthy', progress: 0, isIsolated: false };
+        // Node is reachable if: not visited by DFS, not isolated, not already compromised/infected
+        return !visited.has(v) && !vState.isIsolated &&
+          (vState.status === 'healthy' || vState.status === 'protected');
       });
 
       if (nextNeighbor) {
+        // Mark as visited immediately so we don't re-probe it on the next backtrack
+        visited.add(nextNeighbor);
+
         const pulseId = `att-${n}-${nextNeighbor}-${Date.now()}`;
         setActivePulses(prev => [...prev, {
           id: pulseId,
@@ -314,7 +468,7 @@ export function SimulationProvider({ children }) {
           target: nextNeighbor,
           progress: 0
         }]);
-        
+
         currentStack.push(nextNeighbor);
         simStackRef.current = currentStack;
 
@@ -327,7 +481,7 @@ export function SimulationProvider({ children }) {
           );
         }, 0);
       } else {
-        // Backtrack
+        // No unvisited neighbors — backtrack
         currentStack.pop();
         simStackRef.current = currentStack;
         if (currentStack.length > 0) {
@@ -339,7 +493,7 @@ export function SimulationProvider({ children }) {
               n,
               null
             );
-            // Re-trigger from parent
+            // Re-trigger DFS from the parent — it will now skip ${n} (already visited)
             propagateFromNode(prevNode, currentQueue, currentStack);
           }, 100);
         } else {
@@ -357,13 +511,14 @@ export function SimulationProvider({ children }) {
   };
 
   const propagateRecovery = (nodeId) => {
-    // Dijkstra path propagation
-    const path = finalResult?.path || learning?.path || [];
+    // Use finalResultRef to avoid stale closure
+    const result = finalResultRef.current;
+    const path = result?.path || [];
     if (path.length > 0) {
       const idx = path.indexOf(nodeId);
       if (idx > -1 && idx < path.length - 1) {
         const nextNode = path[idx + 1];
-        const targetState = nodeSimStates[nextNode] || { status: 'healthy' };
+        const targetState = nodeSimStatesRef.current[nextNode] || { status: 'healthy' };
         if (targetState.status !== 'recovering' && targetState.status !== 'recovered') {
           const pulseId = `rec-${nodeId}-${nextNode}-${Date.now()}`;
           setActivePulses(prev => [...prev, {
@@ -376,9 +531,8 @@ export function SimulationProvider({ children }) {
         }
       }
     }
-    
-    // MST edges propagation
-    const mstEdges = finalResult?.mstEdges || [];
+
+    const mstEdges = result?.mstEdges || [];
     if (mstEdges.length > 0) {
       mstEdges.forEach(edge => {
         let u = '';
@@ -394,7 +548,7 @@ export function SimulationProvider({ children }) {
 
         if (u === nodeId || v === nodeId) {
           const neighbor = u === nodeId ? v : u;
-          const targetState = nodeSimStates[neighbor] || { status: 'healthy' };
+          const targetState = nodeSimStatesRef.current[neighbor] || { status: 'healthy' };
           if (targetState.status !== 'recovering' && targetState.status !== 'recovered' && !targetState.isIsolated) {
             const pulseId = `rec-${nodeId}-${neighbor}-${Date.now()}`;
             setActivePulses(prev => [...prev, {
@@ -567,6 +721,16 @@ export function SimulationProvider({ children }) {
                 pulsesChanged = true;
                 const targetState = updated[p.target] || { status: 'healthy', progress: 0, isIsolated: false };
 
+                // Mark this wire as permanently traversed (virus trail)
+                if (p.type === 'attack') {
+                  setTraversedEdges(prev => {
+                    const next = new Set(prev);
+                    next.add(`${p.source}->${p.target}`);
+                    next.add(`${p.target}->${p.source}`);
+                    return next;
+                  });
+                }
+
                 if (targetState.isIsolated) {
                   setBlockedCount(c => c + 1);
                   setTimeout(() => {
@@ -693,6 +857,7 @@ export function SimulationProvider({ children }) {
           isIsolated: false,
           progress: 0,
           mode: 'idle',
+          simActive: false,
           isRecoverySource: n.id === recoverySource
         }
       })));
@@ -702,6 +867,7 @@ export function SimulationProvider({ children }) {
           ...e.data,
           isSimulation: false,
           isRecovery: false,
+          isTraversed: false,
           speed
         }
       })));
@@ -712,6 +878,18 @@ export function SimulationProvider({ children }) {
     if (timeline.length > 0 && currentFrame < timeline.length && simulationStatus !== 'running') {
       const frame = timeline[currentFrame];
       const snapshot = frame.nodeStatesSnapshot || {};
+
+      // Build set of traversed edges from all frames up to currentFrame
+      const scrubTraversed = new Set();
+      if (mode === 'simulation') {
+        for (let fi = 0; fi <= currentFrame; fi++) {
+          const f = timeline[fi];
+          if (f.currentEdge && Array.isArray(f.currentEdge) && f.currentEdge.length === 2) {
+            scrubTraversed.add(`${f.currentEdge[0]}->${f.currentEdge[1]}`);
+            scrubTraversed.add(`${f.currentEdge[1]}->${f.currentEdge[0]}`);
+          }
+        }
+      }
       
       setNodes(originalNodes.map(n => {
         const snapState = snapshot[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
@@ -723,6 +901,7 @@ export function SimulationProvider({ children }) {
             isIsolated: snapState.isIsolated,
             progress: snapState.progress,
             mode,
+            simActive: true,
             onIsolate: handleNodeIsolate,
             onRecover: handleNodeRecover,
             onRestore: handleNodeRestore
@@ -743,12 +922,17 @@ export function SimulationProvider({ children }) {
             (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
             (e.source === activeEdge[1] && e.target === activeEdge[0])
           );
+          const isTraversed = mode === 'simulation' && (
+            scrubTraversed.has(`${e.source}->${e.target}`) ||
+            scrubTraversed.has(`${e.target}->${e.source}`)
+          );
           return {
             ...e,
             data: {
               ...e.data,
               isSimulation: mode === 'simulation' && !!isActive,
               isRecovery: mode === 'recovery' && !!isActive,
+              isTraversed,
               speed
             }
           };
@@ -768,6 +952,7 @@ export function SimulationProvider({ children }) {
           isIsolated: state.isIsolated,
           progress: state.progress,
           mode,
+          simActive: true,
           isRecoverySource: n.id === recoverySource,
           onIsolate: handleNodeIsolate,
           onRecover: handleNodeRecover,
@@ -790,12 +975,18 @@ export function SimulationProvider({ children }) {
             (p.source === e.source && p.target === e.target) ||
             (p.source === e.target && p.target === e.source)
           );
+          // Wire was already traversed by the virus (persistent trail)
+          const isTraversed = mode === 'simulation' && (
+            traversedEdges.has(`${e.source}->${e.target}`) ||
+            traversedEdges.has(`${e.target}->${e.source}`)
+          );
           return {
             ...e,
             data: {
               ...e.data,
               isSimulation: pulse?.type === 'attack',
               isRecovery: pulse?.type === 'recovery',
+              isTraversed,
               pulseProgress: pulse?.progress ?? 0,
               pulseSource: pulse?.source ?? '',
               pulseTarget: pulse?.target ?? '',
@@ -830,6 +1021,11 @@ export function SimulationProvider({ children }) {
           type: 'customEdge',
           data: { weight: e.data?.weight ?? e.weight ?? 1.0, latency: e.data?.latency ?? e.latency ?? 10.0, bandwidth: e.data?.bandwidth ?? e.bandwidth ?? 100.0 }
         }));
+      }
+
+      if (!nodesToSave || nodesToSave.length === 0) {
+        setSaveStatus('');
+        return;
       }
 
       const formattedNodes = nodesToSave.map(node => ({
@@ -902,6 +1098,8 @@ export function SimulationProvider({ children }) {
 
     simQueueRef.current = [];
     simStackRef.current = [];
+    dfsVisitedRef.current = new Set(); // reset DFS visited tracker
+    setTraversedEdges(new Set()); // clear old trail on new attack
 
     if (virusType === 'bfs' || virusType === 'multi_bfs') {
       initNodes.forEach(id => {
@@ -913,6 +1111,7 @@ export function SimulationProvider({ children }) {
       if (first) {
         initialStates[first] = { status: 'compromising', progress: 0, isIsolated: false };
         simStackRef.current.push(first);
+        dfsVisitedRef.current.add(first); // mark start node as visited immediately
       }
     }
 
@@ -1059,6 +1258,9 @@ export function SimulationProvider({ children }) {
     setNodeSimStates({});
     setActivePulses([]);
     setIsolatedEdges({});
+    setTraversedEdges(new Set()); // clear virus wire trail
+    dfsVisitedRef.current = new Set(); // reset DFS visited tracker
+    nodeSimStatesRef.current = {}; // reset ref
     
     // reset canvas colors
     setNodes(originalNodes.map(n => ({

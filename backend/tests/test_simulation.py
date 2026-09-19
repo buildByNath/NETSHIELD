@@ -71,11 +71,11 @@ def test_simulation_multi_bfs():
     """Test multi-source BFS simulation endpoint."""
     office_graph = get_template_graph("office")
     
-    # Request simulation starting from PC-1 and AP-1 simultaneously
+    # Request simulation starting from PC-1 and PC-7 simultaneously
     payload = {
       "algorithm": "multi_bfs",
       "graph": office_graph,
-      "startNodes": ["PC-1", "AP-1"]
+      "startNodes": ["PC-1", "PC-7"]
     }
     
     response = client.post("/simulate", json=payload)
@@ -87,5 +87,5 @@ def test_simulation_multi_bfs():
     assert len(timeline) > 0
     first_frame = timeline[0]
     assert "PC-1" in first_frame["visited"]
-    assert "AP-1" in first_frame["visited"]
+    assert "PC-7" in first_frame["visited"]
     assert len(first_frame["visited"]) >= 2

@@ -55,6 +55,9 @@ export default function CustomNode({ id, data, selected }) {
 
   const [hovered, setHovered] = useState(false);
 
+  // simActive: simulation is running — keep all nodes fully visible, not dimmed
+  const simActive = data.simActive ?? false;
+
   // Inline styles — immune to Tailwind JIT purging in Docker builds
   const getStatusStyles = () => {
     if (isIsolated) {
@@ -123,15 +126,26 @@ export default function CustomNode({ id, data, selected }) {
         };
       case 'healthy':
       default:
-        return {
-          bg: '#1B2838',
-          border: '1px solid rgba(34,197,94,0.4)',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-          iconColor: '#22C55E',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
-          pulse: false
-        };
+        return simActive
+          ? {
+              // Simulation active: bright visible style so healthy nodes don't look "blacked out"
+              bg: '#1E3A4C',
+              border: '1px solid rgba(100,200,140,0.55)',
+              boxShadow: '0 0 8px rgba(34,197,94,0.15)',
+              iconColor: '#4ADE80',
+              labelColor: '#F1F5F9',
+              subColor: '#94A3B8',
+              pulse: false
+            }
+          : {
+              bg: '#1B2838',
+              border: '1px solid rgba(34,197,94,0.4)',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+              iconColor: '#22C55E',
+              labelColor: '#F8FAFC',
+              subColor: '#94A3B8',
+              pulse: false
+            };
     }
   };
 

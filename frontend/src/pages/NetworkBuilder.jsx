@@ -6,6 +6,7 @@ import { AgentStrip } from '../components/office/AgentStrip';
 import { ControlPanel } from '../components/office/ControlPanel';
 import { PixelButton } from '../components/office/PixelButton';
 import { DeskMenuModal } from '../components/office/DeskMenuModal';
+import { HoverDeskTooltip } from '../components/office/HoverDeskTooltip';
 import { useSimulation } from '../context/SimulationContext';
 
 /**
@@ -62,7 +63,7 @@ export default function NetworkBuilder() {
         flexDirection: 'column',
         height: '100%',
         width: '100%',
-        background: 'var(--cth-cream-50)',
+        background: 'var(--cth-ink-900, #141923)',
         overflow: 'hidden',
       }}
     >
@@ -235,7 +236,7 @@ export default function NetworkBuilder() {
                 lineHeight: '1.6',
               }}
             >
-              Drag workers | Click desk for Device Config | Arrow keys move | Scroll zoom
+              Hover over desks to see device info | Click desk for full controls | Drag workers | Arrow keys move | Scroll zoom
             </div>
           </div>
         </main>
@@ -259,8 +260,11 @@ export default function NetworkBuilder() {
       {/* Bottom Status Bar */}
       <AgentStrip />
 
-      {/* Desk Click Modal */}
+      {/* Desk Click Modal — opens on desk click for full controls */}
       <DeskMenuModal />
+
+      {/* Hover Tooltip — appears when hovering over a desk */}
+      <HoverDeskTooltip />
     </div>
   );
 }

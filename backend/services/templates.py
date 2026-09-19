@@ -152,31 +152,54 @@ def get_template_graph(template_id: str) -> Dict[str, List[Dict[str, Any]]]:
             })
             
     elif template_id == "office":
-        # Small Office Network (~10 nodes)
+        # Office Setup Topology — 1 Server · 2 Routers · 2 Switches · 8 named desks
         nodes = [
-            {"id": "NET-1", "label": "Internet", "type": "Internet", "status": "healthy", "position": {"x": 600, "y": 50}},
-            {"id": "FW-1", "label": "Firewall", "type": "Firewall", "status": "healthy", "position": {"x": 600, "y": 130}},
-            {"id": "R-1", "label": "Office Router", "type": "Router", "status": "healthy", "position": {"x": 600, "y": 210}},
-            {"id": "SW-1", "label": "Office Switch", "type": "Access Switch", "status": "healthy", "position": {"x": 600, "y": 290}},
-            
-            {"id": "PC-1", "label": "Workstation 1", "type": "PC", "status": "healthy", "position": {"x": 100, "y": 410}},
-            {"id": "PC-2", "label": "Workstation 2", "type": "PC", "status": "healthy", "position": {"x": 300, "y": 410}},
-            {"id": "LAP-1", "label": "Staff Laptop", "type": "Laptop", "status": "healthy", "position": {"x": 500, "y": 410}},
-            {"id": "PRN-1", "label": "Office Printer", "type": "Printer", "status": "healthy", "position": {"x": 700, "y": 410}},
-            {"id": "AP-1", "label": "Wireless AP", "type": "Wireless Access Point", "status": "healthy", "position": {"x": 900, "y": 410}},
-            {"id": "SRV-1", "label": "Local NAS Server", "type": "Database Server", "status": "healthy", "position": {"x": 1100, "y": 410}}
+            # Core Internet & Security
+            {"id": "NET-1",  "label": "Internet Gateway",        "type": "Internet",           "status": "healthy", "position": {"x": 500, "y": 30}},
+            {"id": "FW-1",   "label": "Office Firewall",         "type": "Firewall",           "status": "healthy", "position": {"x": 500, "y": 130}},
+            # Routing layer — 2 routers
+            {"id": "R-1",    "label": "Router A (Floor 1)",      "type": "Router",             "status": "healthy", "position": {"x": 200, "y": 260}},
+            {"id": "R-2",    "label": "Router B (Floor 2)",      "type": "Router",             "status": "healthy", "position": {"x": 800, "y": 260}},
+            # Single main server
+            {"id": "SRV-1",  "label": "Main Server",             "type": "Application Server", "status": "healthy", "position": {"x": 500, "y": 260}},
+            # Switching layer — 2 switches
+            {"id": "SW-1",   "label": "Switch 1 (Dev & Design)", "type": "Access Switch",      "status": "healthy", "position": {"x": 100, "y": 400}},
+            {"id": "SW-2",   "label": "Switch 2 (Ops & Admin)",  "type": "Access Switch",      "status": "healthy", "position": {"x": 700, "y": 400}},
+            # Floor 1 desks (Switch 1)
+            {"id": "PC-1",   "label": "Aarav's Desk",            "type": "PC",                 "status": "healthy", "position": {"x": 0,   "y": 540}},
+            {"id": "PC-2",   "label": "Arjun's Desk",            "type": "PC",                 "status": "healthy", "position": {"x": 120, "y": 540}},
+            {"id": "PC-3",   "label": "Ananya's Desk",           "type": "Laptop",             "status": "healthy", "position": {"x": 240, "y": 540}},
+            {"id": "PC-4",   "label": "Rahul's Desk",            "type": "PC",                 "status": "healthy", "position": {"x": 360, "y": 540}},
+            # Floor 2 desks (Switch 2)
+            {"id": "PC-5",   "label": "Rohan's Desk",            "type": "PC",                 "status": "healthy", "position": {"x": 580, "y": 540}},
+            {"id": "PC-6",   "label": "Aadhya's Desk",           "type": "PC",                 "status": "healthy", "position": {"x": 700, "y": 540}},
+            {"id": "PC-7",   "label": "Aditya's Desk",           "type": "PC",                 "status": "healthy", "position": {"x": 820, "y": 540}},
+            {"id": "PC-8",   "label": "Dhruv's Desk",            "type": "Laptop",             "status": "healthy", "position": {"x": 940, "y": 540}},
         ]
         edges = [
-            {"source": "NET-1", "target": "FW-1", "weight": 1.0, "latency": 1.0, "bandwidth": 100.0},
-            {"source": "FW-1", "target": "R-1", "weight": 1.0, "latency": 2.0, "bandwidth": 100.0},
-            {"source": "R-1", "target": "SW-1", "weight": 1.0, "latency": 5.0, "bandwidth": 1000.0},
-            
-            {"source": "SW-1", "target": "PC-1", "weight": 1.0, "latency": 10.0, "bandwidth": 100.0},
-            {"source": "SW-1", "target": "PC-2", "weight": 1.0, "latency": 10.0, "bandwidth": 100.0},
-            {"source": "SW-1", "target": "LAP-1", "weight": 1.0, "latency": 15.0, "bandwidth": 100.0},
-            {"source": "SW-1", "target": "PRN-1", "weight": 1.0, "latency": 12.0, "bandwidth": 100.0},
-            {"source": "SW-1", "target": "AP-1", "weight": 1.0, "latency": 8.0, "bandwidth": 100.0},
-            {"source": "SW-1", "target": "SRV-1", "weight": 1.0, "latency": 3.0, "bandwidth": 1000.0}
+            # Internet → Firewall
+            {"source": "NET-1", "target": "FW-1",  "weight": 1.0, "latency": 1.0, "bandwidth": 1000.0},
+            # Firewall → both routers
+            {"source": "FW-1",  "target": "R-1",   "weight": 1.0, "latency": 2.0, "bandwidth": 1000.0},
+            {"source": "FW-1",  "target": "R-2",   "weight": 1.0, "latency": 2.0, "bandwidth": 1000.0},
+            # Both routers → Main Server
+            {"source": "R-1",   "target": "SRV-1", "weight": 2.0, "latency": 3.0, "bandwidth": 1000.0},
+            {"source": "R-2",   "target": "SRV-1", "weight": 2.0, "latency": 3.0, "bandwidth": 1000.0},
+            # Inter-router redundancy link
+            {"source": "R-1",   "target": "R-2",   "weight": 3.0, "latency": 4.0, "bandwidth": 1000.0},
+            # Routers → switches
+            {"source": "R-1",   "target": "SW-1",  "weight": 1.0, "latency": 3.0, "bandwidth": 1000.0},
+            {"source": "R-2",   "target": "SW-2",  "weight": 1.0, "latency": 3.0, "bandwidth": 1000.0},
+            # Switch 1 → Floor 1 desks
+            {"source": "SW-1",  "target": "PC-1",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            {"source": "SW-1",  "target": "PC-2",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            {"source": "SW-1",  "target": "PC-3",  "weight": 1.0, "latency": 6.0, "bandwidth": 100.0},
+            {"source": "SW-1",  "target": "PC-4",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            # Switch 2 → Floor 2 desks
+            {"source": "SW-2",  "target": "PC-5",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            {"source": "SW-2",  "target": "PC-6",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            {"source": "SW-2",  "target": "PC-7",  "weight": 1.0, "latency": 5.0, "bandwidth": 100.0},
+            {"source": "SW-2",  "target": "PC-8",  "weight": 1.0, "latency": 6.0, "bandwidth": 100.0},
         ]
         
     elif template_id == "hospital":

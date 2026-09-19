@@ -140,9 +140,71 @@ const SPEED_LEVELS = [
   { label: '2.0x', value: 2.0 }
 ];
 
+// ── Backend Data Flow step-by-step narration per algorithm ───────────────────
+const BACKEND_FLOW_NARRATIONS = {
+  bfs: [
+    '📡 STEP 1 — INFECTION INJECTION: The worm payload is encoded into a malformed TCP packet and injected into the initial device (PC-1). The OS memory is corrupted through a buffer overflow, compromising the device.',
+    '📦 STEP 2 — QUEUE INITIALIZATION: The infected device ID is placed at the rear of the FIFO (First-In-First-Out) Queue data structure. Memory address of the queue head pointer is set to this first entry.',
+    '🔍 STEP 3 — NEIGHBOR DISCOVERY: BFS dequeues the front node. The NIC (Network Interface Card) scans the ARP table to list all directly connected neighbor MAC addresses via the switch CAM table.',
+    '📤 STEP 4 — PACKET BROADCAST: For each unvisited neighbor, the worm crafts a copy of itself and sends it over the switch fabric. The Ethernet frame is forwarded to the target MAC through the access switch.',
+    '🔴 STEP 5 — COMPROMISE: The target device receives the packet. The OS scheduler runs the malicious code, overwrites kernel memory, and the device status changes to INFECTED. It is now added to the queue.',
+    '✅ STEP 6 — VISITED SET UPDATE: The source node is removed from the queue and added to the Visited hash set. This prevents re-infection loops in the network graph.',
+    '🔁 STEP 7 — PROPAGATION REPEAT: BFS continues dequeuing, broadcasting to unvisited neighbors, and marking visited until the queue is empty — every reachable device is compromised.',
+  ],
+  dfs: [
+    '🎯 STEP 1 — INITIAL PROBE: The network scanner pushes the starting device onto the LIFO (Last-In-First-Out) Stack. A SYN packet is sent to test if the host is online.',
+    '📚 STEP 2 — STACK PUSH: DFS selects one unvisited neighbor and pushes it to the top of the stack. The scanner dives deep into this single network branch before exploring others.',
+    '🔬 STEP 3 — DEEP TRAVERSAL: The scanner follows one path as far as possible — traversing PC → Switch → Router → next subnet. Each hop pushes the next node onto the stack.',
+    '⚠️ STEP 4 — DEAD END DETECTION: When no unvisited neighbors exist at the current node, DFS backtracks. The current node is popped from the stack and the previous node resumes exploration.',
+    '🔙 STEP 5 — BACKTRACK SIGNAL: The stack pop operation retrieves the previous device. Network flow returns to the parent node via the same Layer 2 path it arrived on.',
+    '🗂️ STEP 6 — VISITED MARKING: Each explored node is marked in the Visited set (a hash map of device IDs). This prevents infinite loops in cyclic network topologies.',
+    '🏁 STEP 7 — COMPLETION: DFS finishes when the stack is empty. Every device reachable from the start node has been discovered and analyzed.',
+  ],
+  dijkstra: [
+    '🛡️ STEP 1 — SOURCE INITIALIZATION: The recovery server (SRV-1) is set as the source vertex. Distance[SRV-1] = 0; all other nodes set to ∞. A Min-Priority Queue is initialized with (0, SRV-1).',
+    '📊 STEP 2 — PRIORITY QUEUE EXTRACTION: The node with minimum distance estimate is extracted from the Min-Heap. This is always the cheapest unvisited recovery path candidate.',
+    '📡 STEP 3 — EDGE RELAXATION: For each neighbor of the extracted node, check: dist[u] + weight(u,v) < dist[v]. If TRUE, update dist[v] and insert (new_dist, v) into the priority queue.',
+    '🔗 STEP 4 — NETWORK DATA FLOW: Recovery packets travel from the server through routers and switches. Each hop has a cost (latency + weight). Dijkstra finds the minimum total cost path.',
+    '🔵 STEP 5 — PATH RECONSTRUCTION: Once the target device is reached, trace back through the previous[] array to reconstruct the recovery route: SRV-1 → R-1 → SW-1 → PC-target.',
+    '💊 STEP 6 — RECOVERY SIGNAL: The recovery server sends a healing packet along the shortest path. Each intermediate device forwards it until the infected node receives the antivirus payload.',
+    '✅ STEP 7 — NODE RECOVERY COMPLETE: The infected device processes the recovery packet, clears malicious processes, and its status changes from INFECTED → RECOVERED (shown in blue).',
+  ],
+  prim: [
+    '🌱 STEP 1 — MST INIT: Prim starts at the server node. The minimum spanning tree (MST) set is initialized as empty. All edge weights to unvisited nodes are set to ∞.',
+    '📡 STEP 2 — CHEAPEST EDGE SELECTION: Prim scans all edges crossing from the visited MST set to unvisited nodes. The edge with minimum weight is selected — this represents the cheapest cable/link to add.',
+    '🔗 STEP 3 — SAFE EDGE ADDITION: The selected edge and its target node are added to the MST. This grows the spanning tree while always picking the minimum cost connection.',
+    '📊 STEP 4 — KEY UPDATE: After adding a node, update all adjacent unvisited nodes: if edge weight < current key, update the key value. This tracks the cheapest way to reach each node.',
+    '🏗️ STEP 5 — BACKBONE CONSTRUCTION: Prim builds the optimal network backbone — the minimum cost infrastructure to connect all devices without redundant cycles.',
+    '✅ STEP 6 — MST COMPLETE: When all V nodes are included, the MST is complete. Total cost = sum of all selected edge weights. This is the minimum infrastructure cost for the office network.',
+  ],
+  kruskal: [
+    '📋 STEP 1 — EDGE SORTING: All network edges are sorted by weight in ascending order. Edges represent network links (cables/WiFi). Lower weight = lower latency/cost.',
+    '🔗 STEP 2 — UNION-FIND INIT: Each device starts as its own disjoint set. The Union-Find (DSU) data structure tracks which devices are already connected in the same component.',
+    '✂️ STEP 3 — EDGE SELECTION: The cheapest remaining edge (u, v) is picked. Find(u) and Find(v) are called to check their set representatives.',
+    '🔍 STEP 4 — CYCLE CHECK: If Find(u) == Find(v), adding this edge would create a cycle — SKIP IT. Cycles waste bandwidth and cause broadcast storms in real networks.',
+    '✅ STEP 5 — UNION MERGE: If Find(u) ≠ Find(v), the edge is safe. Union(u, v) merges the two sets. The edge is added to the MST and physically represents a new network cable.',
+    '🏁 STEP 6 — MST COMPLETION: Continue until V-1 edges are selected. The MST represents the minimum cost wiring plan to connect all office devices — ready for recovery traffic routing.',
+  ],
+  floyd: [
+    '📊 STEP 1 — DISTANCE MATRIX INIT: A V×V matrix is initialized. dist[i][j] = direct edge weight if connected, else ∞. dist[i][i] = 0 for all diagonal entries.',
+    '🔁 STEP 2 — INTERMEDIATE NODE LOOP: Floyd iterates through every possible intermediate node k from 0 to V-1. This considers every device as a potential relay hop.',
+    '📐 STEP 3 — RELAXATION CHECK: For each pair (i,j): if dist[i][k] + dist[k][j] < dist[i][j] → update dist[i][j]. This checks if routing through device k is cheaper.',
+    '📡 STEP 4 — MULTI-HOP ROUTING: This models real network routing — data may travel PC→Switch→Router→Switch→PC. Floyd finds the optimal multi-hop path for every source-destination pair.',
+    '🗺️ STEP 5 — ALL-PAIRS RESULT: After V³ iterations, the matrix contains the shortest path between every pair of devices. This is used for network-wide traffic optimization.',
+    '🔵 STEP 6 — RECOVERY APPLICATION: The computed shortest paths are used to route recovery signals from any healthy device to any infected device in the network.',
+  ],
+  default: [
+    '⚙️ STEP 1 — Algorithm initializes data structures and sets initial state.',
+    '🔍 STEP 2 — Explores nodes/edges according to the algorithm strategy.',
+    '📊 STEP 3 — Updates internal state (queue/stack/table) based on each step.',
+    '✅ STEP 4 — Marks processed elements and continues until termination condition.',
+    '🏁 STEP 5 — Algorithm terminates when all reachable elements are processed.',
+  ],
+};
+
 export default function LearningMode() {
   const [activeAlgo, setActiveAlgo] = useState(ALGORITHMS.find(a => a.id === 'bfs'));
-  const [rightPanelTab, setRightPanelTab] = useState('history'); // 'guide' | 'history'
+  const [rightPanelTab, setRightPanelTab] = useState('history'); // 'history' | 'why' | 'flow'
   
   // Simulation context hook
   const { 
@@ -530,28 +592,83 @@ export default function LearningMode() {
 
   const getExplanationWhy = (algoId, frame, prevFrame) => {
     if (!frame) return "Algorithm initialized.";
+    const q = frame.queue || [];
+    const s = frame.stack || [];
+    const node = frame.currentNode;
+    const edge = frame.currentEdge;
     
     switch (algoId) {
       case 'bfs':
-        if (frame.currentEdge) return `Worm traverses link ${frame.currentEdge[0]} ── ${frame.currentEdge[1]} to compromise adjacent devices.`;
-        if (frame.currentNode) return `Extracting front node ${frame.currentNode} from FIFO Queue to examine unvisited adjacent neighbor nodes.`;
-        return "Discovered neighbors are enqueued to the rear of the FIFO Queue.";
+        if (edge) return `📡 WORM PROPAGATION: Malicious payload packet is sent from ${edge[0]} across the network link to ${edge[1]}. The switch forwards the Ethernet frame through the CAM table. Queue size: ${q.length} pending devices.`;
+        if (node) return `📦 QUEUE DEQUEUE: Device "${node}" is extracted from the FRONT of the FIFO Queue (DEQUEUE operation). BFS now broadcasts infection packets to all of ${node}'s unvisited neighbors. Visited count: ${(frame.visited||[]).length} devices.`;
+        if (q.length > 0) return `🔴 ENQUEUE: Newly discovered neighbor devices are appended to the REAR of the FIFO Queue. Data structure state: Queue[0]="${q[0]}" is next to be processed. Queue length = ${q.length}.`;
+        return `✅ BFS COMPLETE: All reachable devices have been compromised. Total infected = ${(frame.visited||[]).length}. Queue is empty — algorithm terminates.`;
       case 'dfs':
-        if (frame.action?.includes('backtrack') || frame.action?.includes('dead-end')) return `Backtracking through previous link since no unvisited adjacent nodes remain.`;
-        if (frame.currentNode) return `Exploring deeper from node ${frame.currentNode} and pushing it onto the LIFO stack.`;
-        return "DFS traverses deep into tree branch paths using LIFO ordering.";
+        if (frame.action?.includes('Backtrack') || frame.action?.includes('dead-end')) return `🔙 BACKTRACK: No unvisited neighbors remain at "${node}". DFS performs STACK POP — removing "${node}" from top. Network scanner returns along the same path it came. Stack depth: ${s.length}.`;
+        if (edge) return `🔬 DEEP SCAN: Scanner drills deeper — traversing link ${edge[0]} → ${edge[1]}. This network hop is recorded in the LIFO Stack (PUSH). The stack tracks our current path through the network.`;
+        if (node) return `📚 STACK PUSH: Device "${node}" is PUSHED onto the top of the LIFO Stack. DFS commits to exploring this branch fully before backtracking. Stack depth = ${s.length}.`;
+        return `🏁 DFS COMPLETE: All reachable paths explored. Total discovered = ${(frame.visited||[]).length} devices. Stack is empty.`;
       case 'dijkstra':
-        return "Dijkstra extracts the minimum path cost estimate from the priority queue and relaxes adjacent neighbors.";
+        if (edge) return `📡 EDGE RELAXATION: Checking if routing through link ${edge[0]}→${edge[1]} gives a shorter recovery path. Formula: dist[${edge[0]}] + weight(${edge[0]},${edge[1]}) vs current dist[${edge[1]}]. If cheaper → update distance table and re-insert into Min-Heap.`;
+        if (node) return `⬇️ MIN-HEAP EXTRACT: Device "${node}" has the MINIMUM distance estimate in the Priority Queue. It is extracted (DEQUEUE_MIN) and its shortest path from the server is now FINALIZED. Recovery signal is routed toward this device.`;
+        if (q.length > 0) return `📊 PRIORITY QUEUE STATE: ${q.length} candidate nodes remain in the Min-Heap. The next extraction will be the cheapest unprocessed device. Dijkstra guarantees the globally optimal recovery route.`;
+        return `✅ RECOVERY PATH FOUND: Dijkstra has computed the minimum cost path from the recovery server to the infected device. The recovery packet now travels this optimal route through the network.`;
       case 'prim':
-        return "Prim's selects the minimum weight candidate edge connected to our active MST vertices to grow the tree.";
+        if (edge) return `🌱 MST EDGE ADDED: Cable link ${edge[0]}↔${edge[1]} is the cheapest connection from MST to unvisited nodes. It is added to the Minimum Spanning Tree — representing an optimal network backbone link.`;
+        if (node) return `📡 NODE JOINED MST: Device "${node}" is now part of the MST. Its adjacent edges are evaluated to update the min-key values of neighboring unvisited nodes.`;
+        return `🏗️ MST GROWING: Prim's algorithm grows the network backbone one minimum-cost edge at a time. Total MST cost so far: ${frame.mstWeight ?? 0} units.`;
       case 'kruskal':
-        return "Kruskal sorts all graph edges by weight and union-finds parent sets to add edges without cycles.";
+        if (frame.action?.includes('Skipping') || frame.action?.includes('cycle')) return `🔄 CYCLE DETECTED: Edge would connect two nodes already in the same Union-Find set (Find(u) == Find(v)). Adding this edge would create a network loop — SKIPPED to avoid broadcast storms.`;
+        if (edge) return `✅ UNION MERGE: Find(${edge[0]}) ≠ Find(${edge[1]}) — no cycle! Union(${edge[0]}, ${edge[1]}) merges the two network segments. Edge weight = ${frame.currentWeight ?? '?'} added to MST backbone.`;
+        return `📋 EDGE PROCESSING: Sorted edge list is processed in ascending weight order. Each edge is tested for the cycle condition using Union-Find path compression.`;
+      case 'floyd':
+        if (node) return `📐 FLOYD RELAXATION via k="${node}": Testing if routing all traffic through "${node}" as intermediate hop reduces the path cost for any pair (i,j). Formula: dist[i][${node}] + dist[${node}][j] < dist[i][j] ?`;
+        return `🗺️ ALL-PAIRS SHORTEST PATH: Floyd-Warshall fills the distance matrix step by step. Each outer iteration adds one more possible relay device (k). After V iterations, every pair has its optimal route.`;
+      case 'topological_sort':
+        if (node) return `📋 KAHN'S ALGORITHM: Node "${node}" has in-degree 0 — all its dependencies are satisfied. It is dequeued and added to the topological order. All its successors have their in-degree decremented by 1.`;
+        return `🔗 DEPENDENCY RESOLUTION: Topological sort models task scheduling in a network (e.g., which devices must come online before others). Nodes with zero in-degree (no pending dependencies) are processed first.`;
+      case 'connected_components':
+        if (node) return `🔍 DFS COMPONENT SCAN: Starting DFS from unvisited node "${node}" to discover all devices in this connected subnet. Every node reachable from here belongs to the same network island.`;
+        return `🏝️ NETWORK ISLANDS: Connected Components finds isolated subnets — groups of devices that can reach each other but not other groups. Each component is a separate network island.`;
+      case 'union_find':
+        if (frame.action?.includes('Union')) return `🔗 UNION OPERATION: Two network devices are being merged into the same logical group. Path compression optimizes future Find() lookups to O(α(N)) amortized time.`;
+        if (frame.action?.includes('Find')) return `🔍 FIND OPERATION: Tracing the parent pointer chain to locate the root representative of this device's network group. Path compression flattens the tree for future queries.`;
+        return `📊 DISJOINT SET TRACKING: Union-Find tracks which devices belong to the same network segment using a parent array and rank heuristic.`;
+      case 'knapsack':
+        return `📦 GREEDY PACKING: Items (network devices/resources) are sorted by value-per-cost ratio (density). The highest density item is always packed first. If it exceeds capacity, a FRACTIONAL slice is taken.`;
+      case 'branch_bound':
+        if (frame.action?.includes('Prune') || frame.action?.includes('pruned')) return `✂️ BRANCH PRUNED: The upper bound estimate for this partial solution EXCEEDS the current best known cost. This branch cannot lead to an optimal solution — it is pruned from the search tree.`;
+        return `🌳 STATE SPACE SEARCH: Branch and Bound explores the 0/1 knapsack decision tree. At each node: include item (branch left) or exclude item (branch right). Upper bound = fractional relaxation of remaining items.`;
+      case 'tsp':
+        return `🗺️ ROUTE OPTIMIZATION: TSP finds the minimum cost inspection tour visiting all ${(frame.currentRoute||[]).length} office devices exactly once and returning to start. Current best tour cost: ${frame.bestCost ?? 'computing...'}.`;
+      case 'merge_sort':
+        return `📊 DIVIDE & CONQUER: Array is recursively split into halves until single elements. Then sub-arrays are MERGED in sorted order. This models network packet reordering — packets arrive out-of-order and must be reassembled by sequence number.`;
+      case 'quick_sort':
+        return `⚡ PIVOT PARTITIONING: A random pivot is chosen. Elements < pivot move left, elements > pivot move right. This models sorting network response times — identifying outliers (slowest/fastest nodes) efficiently.`;
       case 'nqueens':
-        if (frame.action?.includes('Backtrack')) return "Queen configuration conflict detected! Backtracking to the previous row.";
-        return "Placing a new Queen on the chessboard row cell, checking safety status against existing queens.";
+        if (frame.action?.includes('Backtrack')) return `🔙 CONSTRAINT VIOLATION: Placing a firewall at this position conflicts with an existing firewall (same row/column/diagonal). BACKTRACK — remove this placement and try the next column.`;
+        return `♟️ FIREWALL PLACEMENT: Attempting to place a security device at position (row ${frame.row}, col ${frame.col}). Checking: no two firewalls share the same row, column, or diagonal coverage zone.`;
+      case 'strassen':
+        return `⚡ STRASSEN TRICK: Standard matrix multiplication uses 8 sub-multiplications. Strassen reduces this to 7 using algebraic identities (M1-M7). This models efficient data routing table computation in high-speed switches.`;
+      case 'matrix_chain':
+        return `📐 DP OPTIMAL PARENTHESIZATION: Computing the minimum number of scalar multiplications to evaluate a chain of network transformation matrices. Dynamic programming fills the cost table m[i,j] bottom-up.`;
       default:
         return frame.action || "Algorithm is processing elements in chronological execution ticks.";
     }
+  };
+
+  // Backend flow narration for the current step
+  const getBackendFlowStep = (algoId, frame, frameIdx) => {
+    const narrations = BACKEND_FLOW_NARRATIONS[algoId] || BACKEND_FLOW_NARRATIONS.default;
+    // Map frame index to narration bucket
+    const visited = (frame?.visited || []).length;
+    const total = originalNodes.length || 18;
+    const progress = total > 0 ? visited / total : 0;
+    const narrationIdx = Math.min(
+      Math.floor(progress * narrations.length) + (frameIdx < 2 ? 0 : 1),
+      narrations.length - 1
+    );
+    return narrations[narrationIdx] || narrations[narrations.length - 1];
   };
 
   const renderNonGraphVisualizer = () => {
@@ -1040,24 +1157,32 @@ export default function LearningMode() {
               </div>
             </div>
 
-            {/* "Why?" Explanatory Panel & What Happened step list */}
+            {/* "Why?" Explanatory Panel & What Happened step list & Backend Flow */}
             <div className="bg-[#1B2838]/60 border border-[#4B5563]/25 rounded-xl flex-1 p-4 flex flex-col min-h-0 justify-between">
-              <div className="flex gap-2 border-b border-[#4B5563]/15 pb-2 mb-3 flex-shrink-0">
+              <div className="flex gap-1.5 border-b border-[#4B5563]/15 pb-2 mb-3 flex-shrink-0 flex-wrap">
                 <button
                   onClick={() => setRightPanelTab('history')}
-                  className={`px-2.5 py-1 rounded font-bold text-[9px] uppercase tracking-wider transition-colors ${
+                  className={`px-2 py-1 rounded font-bold text-[8.5px] uppercase tracking-wider transition-colors ${
                     rightPanelTab === 'history' ? 'bg-[#FD802E] text-[#0F1720]' : 'bg-[#111C2A] text-[#94A3B8]'
                   }`}
                 >
-                  What Happened?
+                  📋 Steps
                 </button>
                 <button
                   onClick={() => setRightPanelTab('why')}
-                  className={`px-2.5 py-1 rounded font-bold text-[9px] uppercase tracking-wider transition-colors ${
+                  className={`px-2 py-1 rounded font-bold text-[8.5px] uppercase tracking-wider transition-colors ${
                     rightPanelTab === 'why' ? 'bg-[#FD802E] text-[#0F1720]' : 'bg-[#111C2A] text-[#94A3B8]'
                   }`}
                 >
-                  Active Step Why?
+                  🔍 Why?
+                </button>
+                <button
+                  onClick={() => setRightPanelTab('flow')}
+                  className={`px-2 py-1 rounded font-bold text-[8.5px] uppercase tracking-wider transition-colors ${
+                    rightPanelTab === 'flow' ? 'bg-[#22C55E] text-[#0F1720]' : 'bg-[#111C2A] text-[#94A3B8]'
+                  }`}
+                >
+                  🖧 Backend Flow
                 </button>
               </div>
 
@@ -1092,13 +1217,60 @@ export default function LearningMode() {
                       <div className="text-[#94A3B8] italic text-center py-8">No steps calculated.</div>
                     )}
                   </div>
-                ) : (
+                ) : rightPanelTab === 'why' ? (
                   <div className="space-y-3 pr-1 text-[10px] leading-relaxed text-[#CBD5E1] font-mono">
                     <div className="text-[#FD802E] font-bold uppercase tracking-wider">Step {currentFrame + 1} Explanation:</div>
-                    <div className="text-[#F8FAFC]">{activeFrame.action}</div>
-                    <div className="bg-[#111C2A] p-2.5 rounded-lg border border-[#4B5563]/15 text-[9.5px]">
+                    <div className="text-[#F8FAFC] text-[9.5px]">{activeFrame.action}</div>
+                    <div className="bg-[#111C2A] p-2.5 rounded-lg border border-[#4B5563]/15 text-[9.5px] leading-relaxed">
                       <strong className="text-[#22C55E] block mb-1">DAA Insight:</strong>
                       {getExplanationWhy(activeAlgo.id, activeFrame, timeline[currentFrame - 1])}
+                    </div>
+                    <div className="bg-[#0F1720]/60 p-2 rounded-lg border border-[#4B5563]/10 text-[8.5px] text-[#94A3B8]">
+                      <div className="text-[#FD802E] font-bold mb-1 text-[8px] uppercase">Complexity at this step:</div>
+                      <div>Time: <span className="text-[#22C55E] font-bold">{activeAlgo.complexity?.time || 'O(V+E)'}</span></div>
+                      <div>Space: <span className="text-cyan-400 font-bold">{activeAlgo.complexity?.space || 'O(V)'}</span></div>
+                    </div>
+                  </div>
+                ) : (
+                  // Backend Data Flow narration panel
+                  <div className="space-y-2.5 pr-1">
+                    <div className="text-[#22C55E] font-bold uppercase tracking-wider text-[8.5px] border-b border-[#22C55E]/20 pb-1.5 mb-2">🖧 Backend Network Data Flow</div>
+                    <div className="text-[9px] text-[#94A3B8] mb-2 leading-normal">
+                      How data physically moves through the office network at each algorithm step:
+                    </div>
+                    {(BACKEND_FLOW_NARRATIONS[activeAlgo.id] || BACKEND_FLOW_NARRATIONS.default).map((step, idx) => {
+                      const visited = (activeFrame?.visited || []).length;
+                      const total = originalNodes.length || 18;
+                      const progress = total > 0 ? visited / total : 0;
+                      const activeNarrationIdx = Math.min(
+                        Math.floor(progress * (BACKEND_FLOW_NARRATIONS[activeAlgo.id] || BACKEND_FLOW_NARRATIONS.default).length) + (currentFrame < 2 ? 0 : 1),
+                        (BACKEND_FLOW_NARRATIONS[activeAlgo.id] || BACKEND_FLOW_NARRATIONS.default).length - 1
+                      );
+                      const isCurrentStep = idx === activeNarrationIdx;
+                      const isPastStep = idx < activeNarrationIdx;
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-2.5 rounded-lg border text-[9px] leading-relaxed transition-all ${
+                            isCurrentStep
+                              ? 'border-[#22C55E]/60 bg-[#22C55E]/8 text-[#F8FAFC] shadow-md shadow-[#22C55E]/10'
+                              : isPastStep
+                              ? 'border-[#4B5563]/20 bg-[#111C2A]/50 text-[#6B7280] line-through decoration-[#4B5563]'
+                              : 'border-[#4B5563]/10 bg-[#111C2A]/30 text-[#4B5563]'
+                          }`}
+                        >
+                          <div className={`flex items-start gap-1.5`}>
+                            <span className={`font-mono font-black text-[8px] flex-shrink-0 mt-0.5 ${
+                              isCurrentStep ? 'text-[#22C55E]' : isPastStep ? 'text-[#4B5563]' : 'text-[#374151]'
+                            }`}>{isPastStep ? '✓' : isCurrentStep ? '▶' : String(idx + 1).padStart(2, '0')}</span>
+                            <span>{step}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="mt-3 p-2 bg-[#1B2838] border border-[#3B82F6]/20 rounded-lg text-[8.5px] text-[#3B82F6] leading-relaxed">
+                      <strong className="block mb-1">📖 Network Topology Context:</strong>
+                      Office Setup: 1 Server (SRV-1) → 1 Router (R-1) → 2 Switches (SW-1, SW-2) → 12 Workstations (PC-1 to PC-12)
                     </div>
                   </div>
                 )}
