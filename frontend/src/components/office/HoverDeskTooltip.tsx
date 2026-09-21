@@ -16,19 +16,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  working: 'Online — Working',
+  working: 'Online - Working',
   thinking: 'Thinking...',
   idle: 'On Break',
   blocked: 'Compromised / Blocked',
   success: 'Recovered',
-};
-
-const DEVICE_ICONS: Record<string, string> = {
-  working: '??',
-  thinking: '??',
-  idle: '?',
-  blocked: '?',
-  success: '?',
 };
 
 export const HoverDeskTooltip: React.FC = () => {
@@ -41,19 +33,31 @@ export const HoverDeskTooltip: React.FC = () => {
 
   const TOOLTIP_WIDTH = 220;
   const TOOLTIP_HEIGHT = 130;
+  const OFFSET = 12;
 
-  const left = Math.min(screenX - TOOLTIP_WIDTH / 2, window.innerWidth - TOOLTIP_WIDTH - 16);
-  const top = Math.max(screenY - TOOLTIP_HEIGHT - 16, 8);
+  // Position tooltip near cursor, flipping when close to viewport edges
+  let left = screenX + OFFSET;
+  let top = screenY + OFFSET;
 
-  const statusColor = agent ? (STATUS_COLORS[agent.status] ?? '#6B7280') : '#6B7280';
+  if (left + TOOLTIP_WIDTH > window.innerWidth - 8) {
+    left = screenX - TOOLTIP_WIDTH - OFFSET;
+  }
+  left = Math.max(8, left);
+
+  if (top + TOOLTIP_HEIGHT > window.innerHeight - 8) {
+    top = screenY - TOOLTIP_HEIGHT - OFFSET;
+  }
+  top = Math.max(8, top);
+
+  const statusColor = agent ? (STATUS_COLORS[agent.status] || '#6B7280') : '#6B7280';
 
   return (
     <div
       style={{
         position: 'fixed',
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${TOOLTIP_WIDTH}px`,
+        left: left + 'px',
+        top: top + 'px',
+        width: TOOLTIP_WIDTH + 'px',
         zIndex: 8888,
         pointerEvents: 'none',
       }}
@@ -61,15 +65,15 @@ export const HoverDeskTooltip: React.FC = () => {
       <div
         style={{
           background: 'linear-gradient(135deg, #1B2838 0%, #0F1720 100%)',
-          border: `1.5px solid ${statusColor}55`,
+          border: '1.5px solid ' + statusColor + '55',
           borderRadius: '10px',
           padding: '10px 12px',
-          boxShadow: `0 8px 24px rgba(0,0,0,0.55), 0 0 0 1px ${statusColor}20`,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.55), 0 0 0 1px ' + statusColor + '20',
           fontFamily: "'Courier New', monospace",
           animation: 'tooltipFadeIn 0.15s ease-out',
         }}
       >
-        <style>{`@keyframes tooltipFadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }`}</style>
+        <style>{'@keyframes tooltipFadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }'}</style>
 
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -77,7 +81,7 @@ export const HoverDeskTooltip: React.FC = () => {
             DESK #{deskIndex + 1}
           </span>
           {agent && (
-            <span style={{ fontSize: '8px', background: `${statusColor}20`, color: statusColor, padding: '1px 6px', borderRadius: '4px', border: `1px solid ${statusColor}40`, textTransform: 'uppercase', fontWeight: 'bold' }}>
+            <span style={{ fontSize: '8px', background: statusColor + '20', color: statusColor, padding: '1px 6px', borderRadius: '4px', border: '1px solid ' + statusColor + '40', textTransform: 'uppercase', fontWeight: 'bold' }}>
               {agent.status}
             </span>
           )}
@@ -87,7 +91,7 @@ export const HoverDeskTooltip: React.FC = () => {
           <>
             <div style={{ marginBottom: '6px' }}>
               <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#F8FAFC', marginBottom: '2px' }}>
-                {DEVICE_ICONS[agent.status]} {agent.name}
+                {agent.name}
               </div>
               <div style={{ fontSize: '9px', color: '#94A3B8', lineHeight: '1.5' }}>
                 {agent.description}
@@ -97,12 +101,12 @@ export const HoverDeskTooltip: React.FC = () => {
             <div style={{ background: '#0F1720', border: '1px solid #374151', borderRadius: '6px', padding: '5px 8px' }}>
               <div style={{ fontSize: '8px', color: '#FD802E', fontWeight: 'bold', marginBottom: '2px', textTransform: 'uppercase' }}>Network Device Status</div>
               <div style={{ fontSize: '9px', color: statusColor, fontWeight: 'bold' }}>{STATUS_LABELS[agent.status]}</div>
-              <div style={{ fontSize: '8px', color: '#6B7280', marginTop: '3px' }}>Hover = Info · Click = Full Controls</div>
+              <div style={{ fontSize: '8px', color: '#6B7280', marginTop: '3px' }}>Hover = Info | Click = Full Controls</div>
             </div>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '8px 0', color: '#6B7280', fontSize: '10px' }}>
-            <div style={{ fontSize: '20px', marginBottom: '4px' }}>??</div>
+            <div style={{ fontSize: '20px', marginBottom: '4px' }}>Empty</div>
             <div>Empty Desk</div>
             <div style={{ fontSize: '8px', color: '#4B5563', marginTop: '2px' }}>Click to assign a worker</div>
           </div>

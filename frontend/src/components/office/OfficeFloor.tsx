@@ -718,7 +718,10 @@ export function OfficeFloor() {
           if (Math.abs(st.x - tile.x) <= 1 && Math.abs(st.y - tile.y) <= 1) {
             const assignedEntry = Array.from(runtimes.entries()).find(([, rt]) => rt.seatIndex === i);
             const assignedAgentId = assignedEntry ? assignedEntry[0] : undefined;
-            useStore.getState().openHoverDesk(i, assignedAgentId, ev.global.x, ev.global.y);
+            const nev = (ev as any).nativeEvent as MouseEvent | undefined;
+            const sx = nev ? nev.clientX : ev.global.x;
+            const sy = nev ? nev.clientY : ev.global.y;
+            useStore.getState().openHoverDesk(i, assignedAgentId, sx, sy);
             hoveredDesk = true;
             break;
           }

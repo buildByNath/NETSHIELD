@@ -129,8 +129,8 @@ function SimulationWorkspace() {
     queue: [], 
     stack: [], 
     action: startNodes.length > 0 
-      ? `Click "Infect Network" to begin propagation from ${startNodes.join(', ')}.` 
-      : 'Select a starting device on the canvas to inject the infection.' 
+      ? `🎯 Target selected → ${startNodes.join(', ')}. Hit "Infect Network" to launch the attack!` 
+      : '👆 Click any device on the network canvas to pick your infection starting point.' 
   };
 
   return (
@@ -207,11 +207,22 @@ function SimulationWorkspace() {
         {mode === 'simulation' && simulationStatus !== 'idle' && (
           <div className="flex-1 flex flex-col overflow-hidden p-4 space-y-4">
             
-            {/* Playback action display panel */}
-            <div className="space-y-1">
-              <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Active Operation</label>
-              <div className="bg-[#0F1720]/80 border border-[#4B5563]/30 rounded-lg p-3 text-[11px] font-mono text-[#F8FAFC] min-h-[44px] flex items-center leading-normal">
-                {activeFrameData.action}
+            {/* Playback action display panel — enlarged & visual */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-sm">⚡</span> Active Operation
+                </label>
+                {timeline.length > 0 && (
+                  <span className="text-[9px] font-mono bg-[#FD802E]/15 text-[#FD802E] border border-[#FD802E]/30 px-2 py-0.5 rounded-full font-bold">
+                    Step {currentFrame + 1} / {timeline.length}
+                  </span>
+                )}
+              </div>
+              <div className="bg-[#0F1720]/90 border border-[#FD802E]/20 rounded-lg p-4 min-h-[90px] flex items-center leading-relaxed shadow-[0_0_15px_rgba(253,128,46,0.06)] transition-all duration-300">
+                <div className="text-[12px] font-semibold text-[#F8FAFC] leading-relaxed tracking-wide" style={{ fontFamily: "'Courier New', monospace" }}>
+                  {activeFrameData.action}
+                </div>
               </div>
             </div>
 
@@ -481,10 +492,11 @@ function SimulationWorkspace() {
               </div>
               <div className="flex-1 overflow-y-auto p-3 font-mono text-[9px] text-[#CBD5E1] space-y-0.5 leading-normal">
                 {learning.pseudoCode.map((line, idx) => {
-                  const isEnqueue = (activeFrameData.action.includes('Infection started') || activeFrameData.action.includes('compromised')) && line.includes('Enqueue');
-                  const isDequeue = activeFrameData.action.includes('Scanning from active') && line.includes('Dequeue');
-                  const isCheck = activeFrameData.action.includes('traversing') && line.includes('neighbor not in Visited');
-                  const isBacktrack = activeFrameData.action.includes('Backtracking') && line.includes('Pop');
+                  const act = activeFrameData.action || '';
+                  const isEnqueue = (act.includes('Attack Launched') || act.includes('compromis') || act.includes('Infection started') || act.includes('Enqueued')) && line.includes('Enqueue');
+                  const isDequeue = (act.includes('Queue Dequeue') || act.includes('Scanning from active') || act.includes('dequeued')) && line.includes('Dequeue');
+                  const isCheck = (act.includes('spreading') || act.includes('traversing') || act.includes('probing') || act.includes('Scanning')) && line.includes('neighbor not in Visited');
+                  const isBacktrack = act.includes('Backtrack') && line.includes('Pop');
                   
                   const isHighlighted = isEnqueue || isDequeue || isCheck || isBacktrack;
                   

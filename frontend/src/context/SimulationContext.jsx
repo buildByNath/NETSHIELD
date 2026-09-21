@@ -139,6 +139,8 @@ export function SimulationProvider({ children }) {
   const finalResultRef = useRef({});
   // Visited Set for DFS — tracks which nodes have been pushed to stack (separate from React state)
   const dfsVisitedRef = useRef(new Set());
+  // Visited Set for BFS — tracks which nodes have been enqueued (separate from React state)
+  const bfsVisitedRef = useRef(new Set());
 
   // Playback Control States
   const [timeline, setTimeline] = useState([]);
@@ -354,36 +356,41 @@ export function SimulationProvider({ children }) {
 
   // Log new step frame in execution timeline
   const logTimelineEvent = (action, explanation, currentNode = null, currentEdge = null) => {
-    setNodeSimStates(currentStates => {
-      const stateSnapshot = {};
-      originalNodes.forEach(n => {
-        const state = currentStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
-        stateSnapshot[n.id] = { ...state };
-      });
+    const currentStates = nodeSimStatesRef.current;
+    const stateSnapshot = {};
+    originalNodes.forEach(n => {
+      const state = currentStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
+      stateSnapshot[n.id] = { ...state };
+    });
 
-      const activeInfected = originalNodes
-        .filter(n => currentStates[n.id]?.status === 'infected')
-        .map(n => n.id);
+    const activeInfected = originalNodes
+      .filter(n => currentStates[n.id]?.status === 'infected')
+      .map(n => n.id);
 
-      setTimeline(prev => {
-        const nextStepNum = prev.length + 1;
-        const newFrame = {
-          step: nextStepNum,
-          action,
-          explanation,
-          currentNode,
-          currentEdge,
-          visited: activeInfected,
-          queue: [...simQueueRef.current],
-          stack: [...simStackRef.current],
-          nodeStatesSnapshot: stateSnapshot
-        };
-        
-        setCurrentFrame(nextStepNum - 1);
-        return [...prev, newFrame];
-      });
+    setTimeline(prev => {
+      // Prevent duplicate frame logging if identical action was just logged
+      if (prev.length > 0) {
+        const last = prev[prev.length - 1];
+        if (last.action === action && last.currentNode === currentNode) {
+          return prev;
+        }
+      }
 
-      return currentStates;
+      const nextStepNum = prev.length + 1;
+      const newFrame = {
+        step: nextStepNum,
+        action,
+        explanation,
+        currentNode,
+        currentEdge,
+        visited: activeInfected,
+        queue: [...simQueueRef.current],
+        stack: [...simStackRef.current],
+        nodeStatesSnapshot: stateSnapshot
+      };
+      
+      setCurrentFrame(nextStepNum - 1);
+      return [...prev, newFrame];
     });
   };
 
@@ -394,6 +401,14 @@ export function SimulationProvider({ children }) {
 
     // Check if current node is isolated or recovered
     if (simStates[n]?.isIsolated || simStates[n]?.status === 'recovered') {
+      if (algoId === 'bfs' || algoId === 'multi_bfs') {
+        if (simQueueRef.current[0] === n) {
+          simQueueRef.current.shift();
+          if (simQueueRef.current.length > 0) {
+            propagateFromNode(simQueueRef.current[0], simQueueRef.current, currentStack);
+          }
+        }
+      }
       return;
     }
 
@@ -407,43 +422,117 @@ export function SimulationProvider({ children }) {
     const neighbors = activeEdgesList.map(e => e.source === n ? e.target : e.source);
 
     if (algoId === 'bfs' || algoId === 'multi_bfs') {
-      neighbors.forEach(v => {
+      const queue = simQueueRef.current;
+      if (queue.length === 0) return;
+
+      const curr = queue[0];
+
+      // In BFS FIFO order, only the node at the front of the queue expands its neighbors.
+      // If another node just finished compromising, but isn't front yet, it waits its turn in FIFO order.
+      if (curr !== n && nodeSimStatesRef.current[curr]?.status === 'infected') {
+        n = curr;
+      } else if (curr !== n) {
+        return;
+      }
+
+      // If the current front node is not yet infected (e.g. still compromising), wait until it finishes
+      const currState = simStates[curr] || { status: 'healthy', progress: 0, isIsolated: false };
+      if (currState.status !== 'infected') {
+        return;
+      }
+
+      // Find active neighbors of curr
+      const currEdges = originalEdges.filter(e => {
+        const isSrcIsolated = simStates[e.source]?.isIsolated;
+        const isDstIsolated = simStates[e.target]?.isIsolated;
+        return !isSrcIsolated && !isDstIsolated && (e.source === curr || e.target === curr);
+      });
+      const currNeighbors = currEdges.map(e => e.source === curr ? e.target : e.source);
+
+      // Find the next unvisited neighbor of curr
+      const visited = bfsVisitedRef.current;
+      const nextNeighbor = currNeighbors.find(v => {
         const vState = simStates[v] || { status: 'healthy', progress: 0, isIsolated: false };
-        // Use queue ref for dedup — don't rely on stale activePulses closure
-        const alreadyQueued = simQueueRef.current.includes(v);
-        if (vState.status === 'healthy' && !vState.isIsolated && !alreadyQueued) {
-          const pulseId = `att-${n}-${v}-${Date.now()}`;
-          setActivePulses(prev => [...prev, {
-            id: pulseId,
-            type: 'attack',
-            source: n,
-            target: v,
-            progress: 0
-          }]);
+        return !visited.has(v) && !queue.includes(v) && !vState.isIsolated && vState.status !== 'infected';
+      });
 
-          currentQueue.push(v);
-          simQueueRef.current = currentQueue;
+      if (nextNeighbor) {
+        // Mark visited immediately to prevent duplicate queuing
+        visited.add(nextNeighbor);
 
-          setTimeout(() => {
-            logTimelineEvent(
-              `Threat propagating from ${n} to ${v}`,
-              `The virus has compromised ${n} and is now travelling along the link towards ${v}.`,
-              n,
-              [n, v]
-            );
-          }, 0);
-        } else if (vState.isIsolated && !alreadyQueued) {
+        const vState = simStates[nextNeighbor] || { status: 'healthy', progress: 0, isIsolated: false };
+
+        if (vState.isIsolated) {
           setBlockedCount(prev => prev + 1);
           setTimeout(() => {
             logTimelineEvent(
-              `Propagation Blocked at ${v}`,
-              `The virus attempted to propagate from ${n} to ${v}, but the path was blocked because ${v} is isolated.`,
-              n,
-              [n, v]
+              `🛡️ Blocked!  ${curr} ✕→ ${nextNeighbor}  |  Target is isolated`,
+              `The virus tried to spread from ${curr} to ${nextNeighbor}, but ${nextNeighbor} is isolated — attack blocked!`,
+              curr,
+              [curr, nextNeighbor]
             );
-          }, 0);
+            propagateFromNode(curr, queue, currentStack);
+          }, 300);
+          return;
         }
-      });
+
+        // Add to queue
+        queue.push(nextNeighbor);
+        simQueueRef.current = [...queue];
+
+        // Launch single pulse from curr to nextNeighbor
+        const pulseId = `att-${curr}-${nextNeighbor}-${Date.now()}`;
+        setActivePulses(prev => [...prev, {
+          id: pulseId,
+          type: 'attack',
+          source: curr,
+          target: nextNeighbor,
+          progress: 0
+        }]);
+
+        setTimeout(() => {
+          logTimelineEvent(
+            `🔥 ${curr} → ${nextNeighbor}  |  Virus spreading to next device`,
+            `The virus at ${curr} found unvisited neighbor ${nextNeighbor} and is spreading through the connection. Enqueued: [${queue.join(', ')}].`,
+            curr,
+            [curr, nextNeighbor]
+          );
+        }, 0);
+
+      } else {
+        // No unvisited neighbors left for curr! Dequeue curr from front of FIFO queue
+        queue.shift();
+        simQueueRef.current = [...queue];
+
+        if (queue.length > 0) {
+          const nextFront = queue[0];
+          setTimeout(() => {
+            logTimelineEvent(
+              `📦 Queue Dequeue: ${curr} finished  |  Next in queue: ${nextFront}`,
+              `All neighbors of ${curr} have been explored. ${curr} removed from FIFO Queue front. Active device is now ${nextFront}.`,
+              nextFront,
+              null
+            );
+            // If nextFront is already infected, propagate from it
+            const nextState = nodeSimStatesRef.current[nextFront];
+            if (nextState?.status === 'infected') {
+              propagateFromNode(nextFront, queue, currentStack);
+            }
+          }, 300);
+        } else {
+          // Queue is now empty — all reachable nodes explored!
+          setTimeout(() => {
+            logTimelineEvent(
+              `✅ Worm Propagation Completed  |  All reachable devices compromised`,
+              `Every reachable device in the network has been infected. The FIFO queue is empty — simulation finished.`,
+              null,
+              null
+            );
+            setSimulationStatus('completed');
+            setIsPlaying(false);
+          }, 300);
+        }
+      }
 
     } else if (algoId === 'dfs') {
       // Use dfsVisitedRef to track visited nodes — immune to stale closure
@@ -474,8 +563,8 @@ export function SimulationProvider({ children }) {
 
         setTimeout(() => {
           logTimelineEvent(
-            `DFS drills deeper from ${n} to ${nextNeighbor}`,
-            `DFS explores the next unvisited neighbor ${nextNeighbor}. Propagation pulse launched.`,
+            `🔍 ${n} → ${nextNeighbor}  |  Scanner diving deeper`,
+            `DFS found an unvisited neighbor ${nextNeighbor} and is now scanning it.`,
             n,
             [n, nextNeighbor]
           );
@@ -488,8 +577,8 @@ export function SimulationProvider({ children }) {
           const prevNode = currentStack[currentStack.length - 1];
           setTimeout(() => {
             logTimelineEvent(
-              `Backtracking to ${prevNode}`,
-              `No unvisited healthy neighbors found for ${n}. Backtracking to ${prevNode}.`,
+              `🔄 Backtrack!  ${n} ← ${prevNode}  |  No new neighbors`,
+              `${n} has no unvisited healthy neighbors left. Going back to ${prevNode} to try another path.`,
               n,
               null
             );
@@ -499,8 +588,8 @@ export function SimulationProvider({ children }) {
         } else {
           setTimeout(() => {
             logTimelineEvent(
-              `Scanner DFS Completed`,
-              `All reachable network endpoints have been scanned. Simulation finished.`,
+              `✅ Scan Complete!  All reachable devices visited`,
+              `The DFS scanner has explored every reachable network endpoint. Simulation finished.`,
               null,
               null
             );
@@ -586,8 +675,8 @@ export function SimulationProvider({ children }) {
 
     setTimeout(() => {
       logTimelineEvent(
-        `USER ACTION: Isolated ${nodeId}`,
-        `Device ${nodeId} was isolated. All active connections connected to this device have been detaching from active topology.`,
+        `🛡️ You isolated ${nodeId}  |  All links disconnected`,
+        `${nodeId} is now quarantined — all network connections to this device have been cut off.`,
         nodeId,
         null
       );
@@ -609,8 +698,8 @@ export function SimulationProvider({ children }) {
       if (prevStatus === 'compromising') {
         setTimeout(() => {
           logTimelineEvent(
-            `Recovery Intercepted Attack at ${nodeId}`,
-            `Attack propagation through ${nodeId} was prevented because recovery started before the device became fully compromised.`,
+            `⚡ Recovery intercepted attack at ${nodeId}!`,
+            `Recovery started before ${nodeId} was fully compromised — attack stopped in time!`,
             nodeId,
             null
           );
@@ -618,8 +707,8 @@ export function SimulationProvider({ children }) {
       } else {
         setTimeout(() => {
           logTimelineEvent(
-            `Recovering ${nodeId}`,
-            `Security cleanup patches dispatched to ${nodeId}. Removing infected payloads...`,
+            `💊 Recovering ${nodeId}  |  Cleaning up infection...`,
+            `Security patches sent to ${nodeId}. Removing malware payloads...`,
             nodeId,
             null
           );
@@ -647,8 +736,8 @@ export function SimulationProvider({ children }) {
 
     setTimeout(() => {
       logTimelineEvent(
-        `USER ACTION: Restored links for ${nodeId}`,
-        `Original network connections associated with ${nodeId} have been re-established on the active topology.`,
+        `🔗 You restored links for ${nodeId}  |  Back online`,
+        `All original network connections for ${nodeId} have been re-established.`,
         nodeId,
         null
       );
@@ -735,22 +824,32 @@ export function SimulationProvider({ children }) {
                   setBlockedCount(c => c + 1);
                   setTimeout(() => {
                     logTimelineEvent(
-                      `Attack Blocked at ${p.target}`,
-                      `The attack from ${p.source} reached ${p.target}, but was blocked because ${p.target} is isolated.`,
+                      `🛡️ Blocked!  ${p.source} ✕→ ${p.target}  |  Target is isolated`,
+                      `Attack pulse arrived at ${p.target}, but it's isolated — attack stopped!`,
                       p.source,
                       [p.source, p.target]
                     );
+                    if (algoId === 'bfs' || algoId === 'multi_bfs') {
+                      setTimeout(() => {
+                        propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
+                      }, 300);
+                    }
                   }, 0);
                 } else if (p.type === 'attack') {
                   if (targetState.status === 'recovering' || targetState.status === 'recovered') {
                     setBlockedCount(c => c + 1);
                     setTimeout(() => {
                       logTimelineEvent(
-                        `Attack Blocked at ${p.target}`,
-                        `The attack pulse from ${p.source} reached ${p.target}, but was blocked because ${p.target} is secured.`,
+                        `🛡️ Blocked!  ${p.source} ✕→ ${p.target}  |  Target already secured`,
+                        `Attack reached ${p.target}, but it's already recovered/secured — no effect!`,
                         p.source,
                         [p.source, p.target]
                       );
+                      if (algoId === 'bfs' || algoId === 'multi_bfs') {
+                        setTimeout(() => {
+                          propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
+                        }, 300);
+                      }
                     }, 0);
                   } else {
                     updated[p.target] = {
@@ -761,11 +860,16 @@ export function SimulationProvider({ children }) {
                     changed = true;
                     setTimeout(() => {
                       logTimelineEvent(
-                        `Attack reached ${p.target}`,
-                        `The threat pulse from ${p.source} arrived at ${p.target}. Compromise progress started.`,
+                        `💀 ${p.source} → ${p.target}  |  Device is being compromised!`,
+                        `Attack pulse landed on ${p.target}. Malware installing — compromise in progress!`,
                         p.target,
                         [p.source, p.target]
                       );
+                      if (algoId === 'bfs' || algoId === 'multi_bfs') {
+                        setTimeout(() => {
+                          propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
+                        }, 400);
+                      }
                     }, 0);
                   }
                 } else if (p.type === 'recovery') {
@@ -778,8 +882,8 @@ export function SimulationProvider({ children }) {
                     changed = true;
                     setTimeout(() => {
                       logTimelineEvent(
-                        `Recovery Intercepted Attack at ${p.target}`,
-                        `Recovery completed before compromise completed. Attack propagation through ${p.target} was cancelled.`,
+                        `⚡ Recovery saved ${p.target}!  Attack cancelled`,
+                        `Recovery beat the attack! ${p.target} was patched before the virus could finish compromising it.`,
                         p.target,
                         [p.source, p.target]
                       );
@@ -793,8 +897,8 @@ export function SimulationProvider({ children }) {
                     changed = true;
                     setTimeout(() => {
                       logTimelineEvent(
-                        `Recovery Started at ${p.target}`,
-                        `Recovery pulse reached ${p.target}. Initiating security patch install...`,
+                        `💊 Recovery reached ${p.target}  |  Patching started`,
+                        `Recovery signal arrived at ${p.target}. Security patches installing...`,
                         p.target,
                         [p.source, p.target]
                       );
@@ -845,36 +949,81 @@ export function SimulationProvider({ children }) {
   }, [isPlaying, simulationStatus]);
 
   // Compute live visual nodes & edges mapping for React Flow view layers
+  // IMPORTANT: Uses functional updates + per-element diffing to avoid creating
+  // unnecessary new object references which would cause React Flow to unmount/remount
+  // DOM elements (leading to black screen flickers and disappearing nodes).
   useEffect(() => {
     if (originalNodes.length === 0) return;
 
     if (mode === 'idle') {
-      setNodes(originalNodes.map(n => ({
-        ...n,
-        data: {
-          ...n.data,
-          status: startNodes.includes(n.id) ? 'protected' : 'healthy',
-          isIsolated: false,
-          progress: 0,
-          mode: 'idle',
-          simActive: false,
-          isRecoverySource: n.id === recoverySource
-        }
-      })));
-      setEdges(originalEdges.map(e => ({
-        ...e,
-        data: {
-          ...e.data,
-          isSimulation: false,
-          isRecovery: false,
-          isTraversed: false,
-          speed
-        }
-      })));
+      // ── Idle mode: lightweight pass ──
+      setNodes(prev => {
+        const next = originalNodes.map(n => {
+          const newStatus = startNodes.includes(n.id) ? 'protected' : 'healthy';
+          const isRecSrc = n.id === recoverySource;
+          // Find existing node to diff against
+          const existing = prev.find(p => p.id === n.id);
+          if (
+            existing &&
+            existing.data.status === newStatus &&
+            existing.data.isIsolated === false &&
+            existing.data.progress === 0 &&
+            existing.data.mode === 'idle' &&
+            existing.data.simActive === false &&
+            existing.data.isRecoverySource === isRecSrc
+          ) {
+            return existing; // keep same reference — no re-render for this node
+          }
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              status: newStatus,
+              isIsolated: false,
+              progress: 0,
+              mode: 'idle',
+              simActive: false,
+              isRecoverySource: isRecSrc
+            }
+          };
+        });
+        // If every element is the same reference, return prev to skip React Flow reconciliation
+        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        return next;
+      });
+
+      setEdges(prev => {
+        const next = originalEdges.map(e => {
+          const existing = prev.find(p => p.id === e.id);
+          if (
+            existing &&
+            existing.data.isSimulation === false &&
+            existing.data.isRecovery === false &&
+            existing.data.isTraversed === false &&
+            existing.data.speed === speed &&
+            !existing.hidden
+          ) {
+            return existing;
+          }
+          return {
+            ...e,
+            hidden: false,
+            data: {
+              ...e.data,
+              isSimulation: false,
+              isRecovery: false,
+              isTraversed: false,
+              speed
+            }
+          };
+        });
+        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        return next;
+      });
       return;
     }
 
-    // Scrubbing snapshot mode
+    // ── Scrubbing snapshot mode ──
     if (timeline.length > 0 && currentFrame < timeline.length && simulationStatus !== 'running') {
       const frame = timeline[currentFrame];
       const snapshot = frame.nodeStatesSnapshot || {};
@@ -890,33 +1039,48 @@ export function SimulationProvider({ children }) {
           }
         }
       }
-      
-      setNodes(originalNodes.map(n => {
-        const snapState = snapshot[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            status: snapState.status,
-            isIsolated: snapState.isIsolated,
-            progress: snapState.progress,
-            mode,
-            simActive: true,
-            onIsolate: handleNodeIsolate,
-            onRecover: handleNodeRecover,
-            onRestore: handleNodeRestore
+
+      setNodes(prev => {
+        const next = originalNodes.map(n => {
+          const snapState = snapshot[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
+          const existing = prev.find(p => p.id === n.id);
+          if (
+            existing &&
+            existing.data.status === snapState.status &&
+            existing.data.isIsolated === snapState.isIsolated &&
+            existing.data.progress === snapState.progress &&
+            existing.data.mode === mode &&
+            existing.data.simActive === true
+          ) {
+            return existing;
           }
-        };
-      }));
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              status: snapState.status,
+              isIsolated: snapState.isIsolated,
+              progress: snapState.progress,
+              mode,
+              simActive: true,
+              onIsolate: handleNodeIsolate,
+              onRecover: handleNodeRecover,
+              onRestore: handleNodeRestore
+            }
+          };
+        });
+        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        return next;
+      });
 
-      const activeNodeIds = originalNodes
-        .filter(n => !(snapshot[n.id]?.isIsolated))
-        .map(n => n.id);
-      const activeNodeSet = new Set(activeNodeIds);
+      // Build isolation set for edge visibility
+      const isolatedNodeIds = new Set(
+        originalNodes.filter(n => snapshot[n.id]?.isIsolated).map(n => n.id)
+      );
 
-      setEdges(originalEdges
-        .filter(e => activeNodeSet.has(e.source) && activeNodeSet.has(e.target))
-        .map(e => {
+      setEdges(prev => {
+        const next = originalEdges.map(e => {
+          const shouldHide = isolatedNodeIds.has(e.source) || isolatedNodeIds.has(e.target);
           const activeEdge = frame.currentEdge;
           const isActive = activeEdge && (
             (e.source === activeEdge[0] && e.target === activeEdge[1]) ||
@@ -926,74 +1090,131 @@ export function SimulationProvider({ children }) {
             scrubTraversed.has(`${e.source}->${e.target}`) ||
             scrubTraversed.has(`${e.target}->${e.source}`)
           );
+          const newIsSim = mode === 'simulation' && !!isActive;
+          const newIsRec = mode === 'recovery' && !!isActive;
+
+          const existing = prev.find(p => p.id === e.id);
+          if (
+            existing &&
+            existing.hidden === shouldHide &&
+            existing.data.isSimulation === newIsSim &&
+            existing.data.isRecovery === newIsRec &&
+            existing.data.isTraversed === isTraversed &&
+            existing.data.speed === speed
+          ) {
+            return existing;
+          }
           return {
             ...e,
+            hidden: shouldHide,
             data: {
               ...e.data,
-              isSimulation: mode === 'simulation' && !!isActive,
-              isRecovery: mode === 'recovery' && !!isActive,
+              isSimulation: newIsSim,
+              isRecovery: newIsRec,
               isTraversed,
-              speed
-            }
-          };
-        })
-      );
-      return;
-    }
-
-    // Live execution rendering
-    setNodes(originalNodes.map(n => {
-      const state = nodeSimStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
-      return {
-        ...n,
-        data: {
-          ...n.data,
-          status: state.status,
-          isIsolated: state.isIsolated,
-          progress: state.progress,
-          mode,
-          simActive: true,
-          isRecoverySource: n.id === recoverySource,
-          onIsolate: handleNodeIsolate,
-          onRecover: handleNodeRecover,
-          onRestore: handleNodeRestore
-        }
-      };
-    }));
-
-    setEdges(currentEdges => {
-      const activeNodeIds = originalNodes
-        .filter(n => !(nodeSimStates[n.id]?.isIsolated))
-        .map(n => n.id);
-        
-      const activeNodeSet = new Set(activeNodeIds);
-      
-      return originalEdges
-        .filter(e => activeNodeSet.has(e.source) && activeNodeSet.has(e.target))
-        .map(e => {
-          const pulse = activePulses.find(p => 
-            (p.source === e.source && p.target === e.target) ||
-            (p.source === e.target && p.target === e.source)
-          );
-          // Wire was already traversed by the virus (persistent trail)
-          const isTraversed = mode === 'simulation' && (
-            traversedEdges.has(`${e.source}->${e.target}`) ||
-            traversedEdges.has(`${e.target}->${e.source}`)
-          );
-          return {
-            ...e,
-            data: {
-              ...e.data,
-              isSimulation: pulse?.type === 'attack',
-              isRecovery: pulse?.type === 'recovery',
-              isTraversed,
-              pulseProgress: pulse?.progress ?? 0,
-              pulseSource: pulse?.source ?? '',
-              pulseTarget: pulse?.target ?? '',
               speed
             }
           };
         });
+        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        return next;
+      });
+      return;
+    }
+
+    // ── Live execution rendering ──
+    setNodes(prev => {
+      const next = originalNodes.map(n => {
+        const state = nodeSimStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
+        const isRecSrc = n.id === recoverySource;
+        const existing = prev.find(p => p.id === n.id);
+        if (
+          existing &&
+          existing.data.status === state.status &&
+          existing.data.isIsolated === state.isIsolated &&
+          existing.data.progress === state.progress &&
+          existing.data.mode === mode &&
+          existing.data.simActive === true &&
+          existing.data.isRecoverySource === isRecSrc
+        ) {
+          return existing; // no change — keep same ref
+        }
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            status: state.status,
+            isIsolated: state.isIsolated,
+            progress: state.progress,
+            mode,
+            simActive: true,
+            isRecoverySource: isRecSrc,
+            onIsolate: handleNodeIsolate,
+            onRecover: handleNodeRecover,
+            onRestore: handleNodeRestore
+          }
+        };
+      });
+      if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+      return next;
+    });
+
+    setEdges(prev => {
+      // Build isolation set
+      const isolatedNodeIds = new Set(
+        originalNodes
+          .filter(n => nodeSimStates[n.id]?.isIsolated)
+          .map(n => n.id)
+      );
+
+      const next = originalEdges.map(e => {
+        const shouldHide = isolatedNodeIds.has(e.source) || isolatedNodeIds.has(e.target);
+        const pulse = activePulses.find(p =>
+          (p.source === e.source && p.target === e.target) ||
+          (p.source === e.target && p.target === e.source)
+        );
+        // Wire was already traversed by the virus (persistent trail)
+        const isTraversed = mode === 'simulation' && (
+          traversedEdges.has(`${e.source}->${e.target}`) ||
+          traversedEdges.has(`${e.target}->${e.source}`)
+        );
+        const newIsSim = pulse?.type === 'attack' || false;
+        const newIsRec = pulse?.type === 'recovery' || false;
+        const newPulseProgress = pulse?.progress ?? 0;
+        const newPulseSource = pulse?.source ?? '';
+        const newPulseTarget = pulse?.target ?? '';
+
+        const existing = prev.find(p => p.id === e.id);
+        if (
+          existing &&
+          existing.hidden === shouldHide &&
+          existing.data.isSimulation === newIsSim &&
+          existing.data.isRecovery === newIsRec &&
+          existing.data.isTraversed === isTraversed &&
+          existing.data.pulseProgress === newPulseProgress &&
+          existing.data.pulseSource === newPulseSource &&
+          existing.data.pulseTarget === newPulseTarget &&
+          existing.data.speed === speed
+        ) {
+          return existing;
+        }
+        return {
+          ...e,
+          hidden: shouldHide,
+          data: {
+            ...e.data,
+            isSimulation: newIsSim,
+            isRecovery: newIsRec,
+            isTraversed,
+            pulseProgress: newPulseProgress,
+            pulseSource: newPulseSource,
+            pulseTarget: newPulseTarget,
+            speed
+          }
+        };
+      });
+      if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+      return next;
     });
   }, [nodeSimStates, activePulses, originalNodes, originalEdges, mode, startNodes, speed, currentFrame, timeline, simulationStatus]);
 
@@ -1102,6 +1323,7 @@ export function SimulationProvider({ children }) {
     setTraversedEdges(new Set()); // clear old trail on new attack
 
     if (virusType === 'bfs' || virusType === 'multi_bfs') {
+      bfsVisitedRef.current = new Set(initNodes);
       initNodes.forEach(id => {
         initialStates[id] = { status: 'compromising', progress: 0, isIsolated: false };
         simQueueRef.current.push(id);
@@ -1131,8 +1353,8 @@ export function SimulationProvider({ children }) {
 
     setTimeout(() => {
       logTimelineEvent(
-        `Attack Injected`,
-        `Threat infection inject point set at ${initNodes.join(', ')}. Initial compromise sequence started.`,
+        `🚨 Attack Launched!  Target → ${initNodes.join(', ')}`,
+        `Virus injected at ${initNodes.join(', ')}. Compromise sequence has begun!`,
         initNodes[0] || null,
         null
       );
@@ -1213,8 +1435,8 @@ export function SimulationProvider({ children }) {
 
         setTimeout(() => {
           logTimelineEvent(
-            `Recovery Action Initiated`,
-            `Autonomic healing recovery launched at center node ${src} using ${recoveryAlgo.toUpperCase()}.`,
+            `🏥 Recovery Started!  Source → ${src}  |  Algorithm: ${recoveryAlgo.toUpperCase()}`,
+            `Healing signal launched from ${src}. Recovery is spreading across the network!`,
             src,
             null
           );
@@ -1260,6 +1482,7 @@ export function SimulationProvider({ children }) {
     setIsolatedEdges({});
     setTraversedEdges(new Set()); // clear virus wire trail
     dfsVisitedRef.current = new Set(); // reset DFS visited tracker
+    bfsVisitedRef.current = new Set(); // reset BFS visited tracker
     nodeSimStatesRef.current = {}; // reset ref
     
     // reset canvas colors
@@ -1275,10 +1498,12 @@ export function SimulationProvider({ children }) {
     })));
     setEdges(originalEdges.map(e => ({
       ...e,
+      hidden: false,
       data: {
         ...e.data,
         isSimulation: false,
         isRecovery: false,
+        isTraversed: false,
         speed
       }
     })));
