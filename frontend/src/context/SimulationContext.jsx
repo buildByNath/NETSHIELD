@@ -118,9 +118,9 @@ export function SimulationProvider({ children }) {
   const [infectedNodes, setInfectedNodes] = useState([]);
 
   // Configurable Sim settings
-  const [compromiseTime, setCompromiseTime] = useState(2000); // default 2s
-  const [recoveryTime, setRecoveryTime] = useState(800); // default 0.8s
-  const [propagationDelay, setPropagationDelay] = useState(500); // default 0.5s
+  const [compromiseTime, setCompromiseTime] = useState(2500); // default 2.5s (smooth compromise visualization)
+  const [recoveryTime, setRecoveryTime] = useState(1000); // default 1.0s
+  const [propagationDelay, setPropagationDelay] = useState(1200); // default 1.2s (calibrated with 1.2s SVG pulse animation)
 
   // Live simulation states
   const [nodeSimStates, setNodeSimStates] = useState({});
@@ -147,6 +147,7 @@ export function SimulationProvider({ children }) {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1.0);
+  const speedRef = useRef(speed);
   const [simulationStatus, setSimulationStatus] = useState('idle'); // 'idle' | 'loading' | 'running' | 'paused' | 'completed'
   const [statistics, setStatistics] = useState({});
   const [learning, setLearning] = useState({});
@@ -158,6 +159,11 @@ export function SimulationProvider({ children }) {
   
   const playbackInterval = useRef(null);
 
+  // Keep speedRef in sync
+  useEffect(() => {
+    speedRef.current = speed;
+  }, [speed]);
+
   // Keep nodeSimStatesRef in sync so setTimeout/setInterval callbacks always read current state
   useEffect(() => {
     nodeSimStatesRef.current = nodeSimStates;
@@ -167,6 +173,16 @@ export function SimulationProvider({ children }) {
   useEffect(() => {
     finalResultRef.current = finalResult;
   }, [finalResult]);
+
+  // Keep infectedNodes in sync with active nodeSimStates
+  useEffect(() => {
+    const activeInfected = originalNodes
+      .filter(n => nodeSimStates[n.id]?.status === 'infected' || nodeSimStates[n.id]?.status === 'compromising')
+      .map(n => n.id);
+    if (activeInfected.length > 0) {
+      setInfectedNodes(activeInfected);
+    }
+  }, [nodeSimStates, originalNodes]);
 
   // Load baseline active graph
   const loadGraph = async () => {
@@ -472,7 +488,7 @@ export function SimulationProvider({ children }) {
               [curr, nextNeighbor]
             );
             propagateFromNode(curr, queue, currentStack);
-          }, 300);
+          }, Math.round(600 / (speedRef.current || 1)));
           return;
         }
 
@@ -518,7 +534,7 @@ export function SimulationProvider({ children }) {
             if (nextState?.status === 'infected') {
               propagateFromNode(nextFront, queue, currentStack);
             }
-          }, 300);
+          }, Math.round(900 / (speedRef.current || 1)));
         } else {
           // Queue is now empty — all reachable nodes explored!
           setTimeout(() => {
@@ -530,7 +546,7 @@ export function SimulationProvider({ children }) {
             );
             setSimulationStatus('completed');
             setIsPlaying(false);
-          }, 300);
+          }, Math.round(700 / (speedRef.current || 1)));
         }
       }
 
@@ -584,7 +600,7 @@ export function SimulationProvider({ children }) {
             );
             // Re-trigger DFS from the parent — it will now skip ${n} (already visited)
             propagateFromNode(prevNode, currentQueue, currentStack);
-          }, 100);
+          }, Math.round(500 / (speedRef.current || 1)));
         } else {
           setTimeout(() => {
             logTimelineEvent(
@@ -599,46 +615,110 @@ export function SimulationProvider({ children }) {
     }
   };
 
+  // Helper: BFS path finder on network topology
+  const findShortestNetworkPath = (start, end) => {
+    if (!start || !end || start === end) return [start];
+    const adj = {};
+    originalNodes.forEach(n => { adj[n.id] = []; });
+    originalEdges.forEach(e => {
+      if (adj[e.source] && adj[e.target]) {
+        adj[e.source].push(e.target);
+        adj[e.target].push(e.source);
+      }
+    });
+
+    const q = [[start]];
+    const seen = new Set([start]);
+    while (q.length > 0) {
+      const curPath = q.shift();
+      const last = curPath[curPath.length - 1];
+      if (last === end) return curPath;
+      for (const nbr of (adj[last] || [])) {
+        if (!seen.has(nbr)) {
+          seen.add(nbr);
+          q.push([...curPath, nbr]);
+        }
+      }
+    }
+    return [start, end];
+  };
+
   const propagateRecovery = (nodeId) => {
     // Use finalResultRef to avoid stale closure
-    const result = finalResultRef.current;
-    const path = result?.path || [];
-    if (path.length > 0) {
+    const result = finalResultRef.current || {};
+    const dest = recoveryTarget;
+    const currentStates = nodeSimStatesRef.current;
+    const currentAlgo = algoId;
+
+    // Check if recovery is fully finished
+    const checkCompletion = () => {
+      setTimeout(() => {
+        const freshStates = nodeSimStatesRef.current;
+        const targetState = dest ? freshStates[dest] : null;
+        const remainingInfected = originalNodes.filter(n => 
+          freshStates[n.id]?.status === 'infected' || freshStates[n.id]?.status === 'compromising'
+        );
+
+        if ((dest && targetState?.status === 'recovered') || remainingInfected.length === 0) {
+          setSimulationStatus('completed');
+          setIsPlaying(false);
+          logTimelineEvent(
+            `✅ Recovery Completed Successfully!`,
+            dest 
+              ? `Target computer ${dest} and associated path have been fully patched and secured.` 
+              : `All targeted devices on the network have been cleaned and restored to healthy operation.`,
+            dest || nodeId,
+            null
+          );
+        }
+      }, Math.round(500 / (speedRef.current || 1)));
+    };
+
+    // 1. Dijkstra / Floyd / TSP path-based recovery
+    let path = result?.path || [];
+    if (path.length === 0 && (currentAlgo === 'dijkstra' || currentAlgo === 'floyd')) {
+      path = findShortestNetworkPath(recoverySource, dest);
+    }
+
+    if (path.length > 0 && (currentAlgo === 'dijkstra' || currentAlgo === 'floyd' || currentAlgo === 'tsp')) {
       const idx = path.indexOf(nodeId);
       if (idx > -1 && idx < path.length - 1) {
         const nextNode = path[idx + 1];
-        const targetState = nodeSimStatesRef.current[nextNode] || { status: 'healthy' };
-        if (targetState.status !== 'recovering' && targetState.status !== 'recovered') {
-          const pulseId = `rec-${nodeId}-${nextNode}-${Date.now()}`;
+        // If nextNode is not a direct neighbor in originalEdges, route through topology
+        const hasDirectEdge = originalEdges.some(e => 
+          (e.source === nodeId && e.target === nextNode) || (e.source === nextNode && e.target === nodeId)
+        );
+        const actualHop = hasDirectEdge ? nextNode : (findShortestNetworkPath(nodeId, nextNode)[1] || nextNode);
+        const targetState = currentStates[actualHop] || { status: 'healthy' };
+        if (targetState.status !== 'recovering' && targetState.status !== 'recovered' && !targetState.isIsolated) {
+          const pulseId = `rec-${nodeId}-${actualHop}-${Date.now()}`;
           setActivePulses(prev => [...prev, {
             id: pulseId,
             type: 'recovery',
             source: nodeId,
-            target: nextNode,
+            target: actualHop,
             progress: 0
           }]);
+          return;
         }
+      } else if (idx === path.length - 1 || nodeId === dest) {
+        checkCompletion();
+        return;
       }
     }
 
-    const mstEdges = result?.mstEdges || [];
-    if (mstEdges.length > 0) {
+    // 2. Prim / Kruskal Spanning Tree recovery
+    const mstEdges = result?.edges || result?.mstEdges || [];
+    if (mstEdges.length > 0 && (currentAlgo === 'prim' || currentAlgo === 'kruskal')) {
+      let sentPulse = false;
       mstEdges.forEach(edge => {
-        let u = '';
-        let v = '';
-        if (typeof edge === 'string') {
-          const parts = edge.split(' - ');
-          u = parts[0];
-          v = parts[1];
-        } else if (edge.source && edge.target) {
-          u = edge.source;
-          v = edge.target;
-        }
-
+        let u = edge.source || (typeof edge === 'string' ? edge.split(' - ')[0] : '');
+        let v = edge.target || (typeof edge === 'string' ? edge.split(' - ')[1] : '');
         if (u === nodeId || v === nodeId) {
           const neighbor = u === nodeId ? v : u;
-          const targetState = nodeSimStatesRef.current[neighbor] || { status: 'healthy' };
+          const targetState = currentStates[neighbor] || { status: 'healthy' };
           if (targetState.status !== 'recovering' && targetState.status !== 'recovered' && !targetState.isIsolated) {
+            sentPulse = true;
             const pulseId = `rec-${nodeId}-${neighbor}-${Date.now()}`;
             setActivePulses(prev => [...prev, {
               id: pulseId,
@@ -650,6 +730,77 @@ export function SimulationProvider({ children }) {
           }
         }
       });
+      if (!sentPulse) {
+        checkCompletion();
+      }
+      return;
+    }
+
+    // 3. Topological Sort sequential dependency recovery
+    const order = result?.order || [];
+    if (order.length > 0 && currentAlgo === 'topological_sort') {
+      const idx = order.indexOf(nodeId);
+      if (idx > -1 && idx < order.length - 1) {
+        const nextNode = order[idx + 1];
+        const legPath = findShortestNetworkPath(nodeId, nextNode);
+        const actualHop = legPath.length > 1 ? legPath[1] : nextNode;
+        const targetState = currentStates[actualHop] || { status: 'healthy' };
+        if (targetState.status !== 'recovering' && targetState.status !== 'recovered' && !targetState.isIsolated) {
+          const pulseId = `rec-${nodeId}-${actualHop}-${Date.now()}`;
+          setActivePulses(prev => [...prev, {
+            id: pulseId,
+            type: 'recovery',
+            source: nodeId,
+            target: actualHop,
+            progress: 0
+          }]);
+          return;
+        }
+      } else {
+        checkCompletion();
+        return;
+      }
+    }
+
+    // 4. Knapsack / Branch & Bound / Connected Components / General Fallback
+    const activeEdgesList = originalEdges.filter(e => e.source === nodeId || e.target === nodeId);
+    const neighbors = activeEdgesList.map(e => e.source === nodeId ? e.target : e.source);
+
+    let launched = false;
+    for (const nbr of neighbors) {
+      const nbrState = currentStates[nbr] || { status: 'healthy' };
+      if (nbrState.status !== 'recovering' && nbrState.status !== 'recovered' && !nbrState.isIsolated) {
+        launched = true;
+        const pulseId = `rec-${nodeId}-${nbr}-${Date.now()}`;
+        setActivePulses(prev => [...prev, {
+          id: pulseId,
+          type: 'recovery',
+          source: nodeId,
+          target: nbr,
+          progress: 0
+        }]);
+      }
+    }
+
+    // If no direct neighbor needs recovery, find path towards destination computer
+    if (!launched && dest && currentStates[dest]?.status !== 'recovered' && currentStates[dest]?.status !== 'recovering') {
+      const pathToDest = findShortestNetworkPath(nodeId, dest);
+      if (pathToDest.length > 1) {
+        const nextHop = pathToDest[1];
+        const pulseId = `rec-${nodeId}-${nextHop}-${Date.now()}`;
+        setActivePulses(prev => [...prev, {
+          id: pulseId,
+          type: 'recovery',
+          source: nodeId,
+          target: nextHop,
+          progress: 0
+        }]);
+        launched = true;
+      }
+    }
+
+    if (!launched) {
+      checkCompletion();
     }
   };
 
@@ -707,8 +858,8 @@ export function SimulationProvider({ children }) {
       } else {
         setTimeout(() => {
           logTimelineEvent(
-            `💊 Recovering ${nodeId}  |  Cleaning up infection...`,
-            `Security patches sent to ${nodeId}. Removing malware payloads...`,
+            `💊 Direct Patch deployed to ${nodeId}`,
+            `Security patch sent directly to ${nodeId}. Removing malware payload...`,
             nodeId,
             null
           );
@@ -717,6 +868,12 @@ export function SimulationProvider({ children }) {
 
       return next;
     });
+
+    // Make sure simulation playback is active so the recovery progress bar advances
+    if (!isPlaying) {
+      setIsPlaying(true);
+      setSimulationStatus('running');
+    }
   };
 
   const handleNodeRestore = (nodeId) => {
@@ -774,9 +931,12 @@ export function SimulationProvider({ children }) {
                 
                 const curQueue = [...simQueueRef.current];
                 const curStack = [...simStackRef.current];
+                const delayBeforeSpread = (algoId === 'bfs' || algoId === 'multi_bfs') 
+                  ? Math.round(400 / (speedRef.current || 1)) 
+                  : 0;
                 setTimeout(() => {
                   propagateFromNode(id, curQueue, curStack);
-                }, 0);
+                }, delayBeforeSpread);
               }
             } else if (node.status === 'recovering') {
               const delta = (tickDuration * 100 * speedFactor) / recoveryTime;
@@ -791,7 +951,7 @@ export function SimulationProvider({ children }) {
                 if (mode === 'recovery') {
                   setTimeout(() => {
                     propagateRecovery(id);
-                  }, 0);
+                  }, Math.round(300 / (speedRef.current || 1)));
                 }
               }
             }
@@ -832,7 +992,7 @@ export function SimulationProvider({ children }) {
                     if (algoId === 'bfs' || algoId === 'multi_bfs') {
                       setTimeout(() => {
                         propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
-                      }, 300);
+                      }, Math.round(600 / (speedRef.current || 1)));
                     }
                   }, 0);
                 } else if (p.type === 'attack') {
@@ -848,7 +1008,7 @@ export function SimulationProvider({ children }) {
                       if (algoId === 'bfs' || algoId === 'multi_bfs') {
                         setTimeout(() => {
                           propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
-                        }, 300);
+                        }, Math.round(600 / (speedRef.current || 1)));
                       }
                     }, 0);
                   } else {
@@ -868,7 +1028,7 @@ export function SimulationProvider({ children }) {
                       if (algoId === 'bfs' || algoId === 'multi_bfs') {
                         setTimeout(() => {
                           propagateFromNode(p.source, simQueueRef.current, simStackRef.current);
-                        }, 400);
+                        }, Math.round(900 / (speedRef.current || 1)));
                       }
                     }, 0);
                   }
@@ -1043,6 +1203,8 @@ export function SimulationProvider({ children }) {
       setNodes(prev => {
         const next = originalNodes.map(n => {
           const snapState = snapshot[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
+          const isRecSrc = mode === 'recovery' && n.id === recoverySource;
+          const isRecTarget = mode === 'recovery' && n.id === recoveryTarget;
           const existing = prev.find(p => p.id === n.id);
           if (
             existing &&
@@ -1050,7 +1212,9 @@ export function SimulationProvider({ children }) {
             existing.data.isIsolated === snapState.isIsolated &&
             existing.data.progress === snapState.progress &&
             existing.data.mode === mode &&
-            existing.data.simActive === true
+            existing.data.simActive === true &&
+            existing.data.isRecoverySource === isRecSrc &&
+            existing.data.isRecoveryTarget === isRecTarget
           ) {
             return existing;
           }
@@ -1063,6 +1227,8 @@ export function SimulationProvider({ children }) {
               progress: snapState.progress,
               mode,
               simActive: true,
+              isRecoverySource: isRecSrc,
+              isRecoveryTarget: isRecTarget,
               onIsolate: handleNodeIsolate,
               onRecover: handleNodeRecover,
               onRestore: handleNodeRestore
@@ -1126,7 +1292,8 @@ export function SimulationProvider({ children }) {
     setNodes(prev => {
       const next = originalNodes.map(n => {
         const state = nodeSimStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
-        const isRecSrc = n.id === recoverySource;
+        const isRecSrc = mode === 'recovery' && n.id === recoverySource;
+        const isRecTarget = mode === 'recovery' && n.id === recoveryTarget;
         const existing = prev.find(p => p.id === n.id);
         if (
           existing &&
@@ -1135,7 +1302,8 @@ export function SimulationProvider({ children }) {
           existing.data.progress === state.progress &&
           existing.data.mode === mode &&
           existing.data.simActive === true &&
-          existing.data.isRecoverySource === isRecSrc
+          existing.data.isRecoverySource === isRecSrc &&
+          existing.data.isRecoveryTarget === isRecTarget
         ) {
           return existing; // no change — keep same ref
         }
@@ -1149,6 +1317,7 @@ export function SimulationProvider({ children }) {
             mode,
             simActive: true,
             isRecoverySource: isRecSrc,
+            isRecoveryTarget: isRecTarget,
             onIsolate: handleNodeIsolate,
             onRecover: handleNodeRecover,
             onRestore: handleNodeRestore
@@ -1363,48 +1532,69 @@ export function SimulationProvider({ children }) {
 
   // API Trigger: Start Recovery planner
   const triggerRecovery = async (recoveryAlgo, options = {}) => {
-    let currentInfected = [];
-    if (timeline.length > 0 && mode === 'simulation') {
-      currentInfected = originalNodes
-        .filter(n => nodeSimStates[n.id]?.status === 'infected' || nodeSimStates[n.id]?.status === 'compromising')
-        .map(n => n.id);
-    }
+    setMode('recovery');
+    setAlgoId(recoveryAlgo);
+    setSimulationStatus('loading');
+    setErrorMsg('');
 
+    // 1. Identify active infected nodes
+    let currentInfected = originalNodes
+      .filter(n => nodeSimStates[n.id]?.status === 'infected' || nodeSimStates[n.id]?.status === 'compromising')
+      .map(n => n.id);
+
+    // If no nodes are currently infected (fresh start), default to client endpoints (PCs, Laptops)
     if (currentInfected.length === 0) {
       originalNodes.forEach(n => {
-        if (['PC', 'Laptop', 'Application Server', 'Database Server', 'Backup Server'].includes(n.type)) {
+        if (['PC', 'Laptop'].includes(n.type)) {
           currentInfected.push(n.id);
         }
       });
     }
 
-    setInfectedNodes(currentInfected);
-
+    // 2. Validate source node (must be a healthy server)
+    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
     let src = options.source || recoverySource;
-    let dest = options.destination || recoveryTarget;
-    
-    if (recoveryAlgo === 'dijkstra' && (!dest || dest === src)) {
-      const serverNodes = currentInfected.filter(id => id.startsWith('SRV-'));
-      if (serverNodes.length > 0) {
-        dest = serverNodes[0];
+    const srcNodeObj = originalNodes.find(n => n.id === src);
+    if (!src || !srcNodeObj || !SERVER_TYPES.includes(srcNodeObj.type) || currentInfected.includes(src)) {
+      const healthyServer = originalNodes.find(n => SERVER_TYPES.includes(n.type) && !currentInfected.includes(n.id))
+                         || originalNodes.find(n => SERVER_TYPES.includes(n.type));
+      if (healthyServer) {
+        src = healthyServer.id;
+        setRecoverySource(src);
       } else {
-        const candidates = currentInfected.filter(id => id !== src);
-        dest = candidates.length > 0 ? candidates[0] : (originalNodes.find(n => n.id !== src)?.id || '');
+        src = originalNodes[0]?.id;
+        setRecoverySource(src);
       }
-      options.destination = dest;
+    }
+
+    // Ensure source is NOT in currentInfected
+    currentInfected = currentInfected.filter(id => id !== src);
+
+    // 3. Validate destination node (the target computer to recover)
+    let dest = options.destination || recoveryTarget;
+    if (!dest || dest === src) {
+      const targetCandidate = currentInfected.find(id => !id.startsWith('SRV-')) 
+                           || currentInfected[0] 
+                           || (originalNodes.find(n => n.id !== src)?.id || '');
+      dest = targetCandidate;
       setRecoveryTarget(dest);
     }
 
-    setMode('recovery');
-    setAlgoId(recoveryAlgo);
-    setSimulationStatus('loading');
-    setErrorMsg('');
-    
+    // Ensure destination computer is in currentInfected so its recovery can be tracked and visualized
+    if (dest && !currentInfected.includes(dest)) {
+      const destObj = originalNodes.find(n => n.id === dest);
+      if (destObj && !SERVER_TYPES.includes(destObj.type)) {
+        currentInfected.push(dest);
+      }
+    }
+
+    setInfectedNodes(currentInfected);
+
     try {
       const response = await algorithmService.recoverNetwork(recoveryAlgo, originalNodes, originalEdges, {
         source: src,
         destination: dest,
-        budget
+        budget: options.budget !== undefined ? options.budget : budget
       });
 
       if (response.success) {
@@ -1416,16 +1606,19 @@ export function SimulationProvider({ children }) {
         setElapsedSeconds(0);
         setSavedCount(0);
         
-        // Retain infected statuses but spawn recovery center
+        // Retain infected statuses on all infected computers but spawn recovery center at src
         setNodeSimStates(prev => {
           let next = { ...prev };
           originalNodes.forEach(n => {
             const currentState = next[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
             if (currentInfected.includes(n.id) && currentState.status !== 'isolated') {
               next[n.id] = { ...currentState, status: 'infected', progress: 100 };
+            } else if (n.id === src) {
+              next[n.id] = { status: 'recovering', progress: 0, isIsolated: false };
+            } else if (!currentState.isIsolated && currentState.status !== 'infected') {
+              next[n.id] = { ...currentState, status: 'healthy', progress: 0 };
             }
           });
-          next[src] = { status: 'recovering', progress: 0, isIsolated: false };
           return next;
         });
 
@@ -1435,8 +1628,8 @@ export function SimulationProvider({ children }) {
 
         setTimeout(() => {
           logTimelineEvent(
-            `🏥 Recovery Started!  Source → ${src}  |  Algorithm: ${recoveryAlgo.toUpperCase()}`,
-            `Healing signal launched from ${src}. Recovery is spreading across the network!`,
+            `🏥 Recovery Started!  Source → ${src}  |  Target → ${dest}  |  Algorithm: ${recoveryAlgo.toUpperCase()}`,
+            `Healing signal initiated from ${src} targeting ${dest}. Deploying security patches...`,
             src,
             null
           );
@@ -1446,6 +1639,7 @@ export function SimulationProvider({ children }) {
         setSimulationStatus('idle');
       }
     } catch (err) {
+      console.error('Recovery API error', err);
       setErrorMsg('Recovery API request failed.');
       setSimulationStatus('idle');
     }

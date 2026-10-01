@@ -42,7 +42,8 @@ const edgeTypes = {
 };
 
 const SPEED_LEVELS = [
-  { value: 0.5, label: '0.5x (Teaching)' },
+  { value: 0.25, label: '0.25x (Slow-Mo)' },
+  { value: 0.5, label: '0.5x (Slow / Study)' },
   { value: 1.0, label: '1.0x (Normal)' },
   { value: 2.0, label: '2.0x (Fast)' },
   { value: 4.0, label: '4.0x (Demo)' }
@@ -90,45 +91,61 @@ function RecoveryWorkspace() {
   const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
-  // Helper: run Dijkstra from recovery source to a specific infected device
-  const recoverDeviceWithDijkstra = (targetNodeId) => {
-    setSelectedAlgo('dijkstra');
+  // Helper: run recovery planner from recovery source to a specific target device
+  const recoverDevice = (targetNodeId) => {
     setRecoveryTarget(targetNodeId);
     const options = {
       source: recoverySource,
       destination: targetNodeId,
       budget: parseFloat(budget)
     };
-    triggerRecovery('dijkstra', options);
+    triggerRecovery(selectedAlgo, options);
   };
 
-  // Auto-fill defaults when infectedNodes change
+  // Auto-fill defaults: ensure source is a healthy server and target is an infected PC/Laptop
   useEffect(() => {
-    if (infectedNodes.length > 0) {
-      // Set target to first infected server, or first infected PC
-      const server = infectedNodes.find(id => id.startsWith('SRV-'));
-      if (server) {
-        setRecoveryTarget(server);
-      } else {
-        setRecoveryTarget(infectedNodes[0]);
+    if (originalNodes.length > 0) {
+      const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+      if (!recoverySource || !originalNodes.some(n => n.id === recoverySource && SERVER_TYPES.includes(n.type))) {
+        const server = originalNodes.find(n => SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id))
+                    || originalNodes.find(n => SERVER_TYPES.includes(n.type));
+        if (server) setRecoverySource(server.id);
       }
     }
-  }, [infectedNodes, setRecoveryTarget]);
+  }, [originalNodes, recoverySource, infectedNodes, setRecoverySource]);
 
-  // Click handler to select target nodes (educational option override)
-  const onNodeClick = useCallback((event, node) => {
-    if (mode === 'recovery' && (simulationStatus === 'running' || simulationStatus === 'paused' || simulationStatus === 'completed')) return;
-    
-    // If the node is infected, allow setting it as target. Otherwise, set as source.
-    if (infectedNodes.includes(node.id)) {
-      setRecoveryTarget(node.id);
-    } else {
-      setRecoverySource(node.id);
+  useEffect(() => {
+    if (infectedNodes.length > 0) {
+      // Prioritize client PC/Laptop, fallback to any non-source infected node
+      const pc = infectedNodes.find(id => id.startsWith('PC-') || id.startsWith('L-'));
+      if (pc) {
+        setRecoveryTarget(pc);
+      } else {
+        const nonSrc = infectedNodes.find(id => id !== recoverySource) || infectedNodes[0];
+        if (nonSrc) setRecoveryTarget(nonSrc);
+      }
+    } else if (originalNodes.length > 0 && !recoveryTarget) {
+      const pc = originalNodes.find(n => n.type === 'PC' || n.type === 'Laptop');
+      if (pc) setRecoveryTarget(pc.id);
     }
-  }, [mode, simulationStatus, infectedNodes, setRecoverySource, setRecoveryTarget]);
+  }, [infectedNodes, originalNodes, recoverySource, recoveryTarget, setRecoveryTarget]);
+
+  // Click handler to select target / source nodes
+  const onNodeClick = useCallback((event, node) => {
+    if (simulationStatus === 'running') return;
+    
+    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+    if (SERVER_TYPES.includes(node.type) && !infectedNodes.includes(node.id)) {
+      setRecoverySource(node.id);
+      if (triggerNotification) triggerNotification(`Recovery Source set to ${node.id} (${node.type})`);
+    } else {
+      setRecoveryTarget(node.id);
+      if (triggerNotification) triggerNotification(`Target Computer set to ${node.id} (${node.type})`);
+    }
+  }, [simulationStatus, infectedNodes, setRecoverySource, setRecoveryTarget, triggerNotification]);
 
   const handlePlayPause = () => {
-    if (simulationStatus === 'idle') {
+    if (simulationStatus === 'idle' || simulationStatus === 'completed') {
       const options = {
         source: recoverySource,
         destination: recoveryTarget,
@@ -222,86 +239,119 @@ function RecoveryWorkspace() {
             )}
           </div>
 
-          {/* Budget input field for Knapsack / Branch & Bound */}
-          {['fractional_knapsack', 'branch_bound'].includes(selectedAlgo) && (
-            <div className="space-y-1 animate-in fade-in duration-150">
-              <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Recovery Budget (Max Cost)</label>
-              <input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(parseFloat(e.target.value) || 10)}
-                disabled={mode === 'recovery' && simulationStatus !== 'idle'}
-                className="w-full bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-3 py-2 rounded-lg outline-none font-mono text-xs"
-              />
-            </div>
-          )}
-
-          {/* Source and destination options selector */}
-          {!['fractional_knapsack', 'branch_bound', 'connected_components', 'union_find', 'topological_sort', 'floyd', 'kruskal'].includes(selectedAlgo) && (
-            <div className="bg-[#0F1720]/40 border border-[#4B5563]/15 rounded-lg p-3 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Recovery Source</label>
-
-                {/* Show currently-selected server with default indicator */}
-                {recoverySource && (
-                  <div className="flex items-center gap-1.5 bg-[#0F1720]/80 border border-[#3B82F6]/40 rounded-lg px-2 py-1.5 mb-1">
-                    <span className="text-[#3B82F6] text-[10px]">🛡️</span>
-                    <span className="font-mono text-[11px] text-[#F8FAFC] font-bold flex-1 truncate">{recoverySource}</span>
-                    <span className="text-[8px] bg-[#3B82F6]/20 text-[#3B82F6] px-1 rounded font-bold">DEFAULT</span>
-                  </div>
-                )}
-
-                <select
-                  value={recoverySource}
-                  onChange={(e) => setRecoverySource(e.target.value)}
-                  disabled={mode === 'recovery' && simulationStatus !== 'idle'}
-                  className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
-                >
-                  {/* Only healthy servers can be recovery sources */}
-                  {originalNodes
-                    .filter(n => {
-                      const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
-                      return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
-                    })
-                    .map(n => (
-                      <option key={n.id} value={n.id}>{n.id} — {n.type}</option>
-                    ))}
-                  {/* Fallback: if no healthy servers, show all healthy nodes */}
-                  {originalNodes.filter(n => {
-                    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
-                    return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
-                  }).length === 0 && originalNodes
-                    .filter(n => !infectedNodes.includes(n.id))
-                    .map(n => (
-                      <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
-                    ))
-                  }
-                </select>
+          {/* Configuration Options: Source, Target Computer & Budget */}
+          <div className="bg-[#0F1720]/50 border border-[#4B5563]/25 rounded-lg p-3 space-y-3">
+            {/* Budget input field for Knapsack / Branch & Bound */}
+            {['fractional_knapsack', 'branch_bound'].includes(selectedAlgo) && (
+              <div className="space-y-1 pb-2 border-b border-[#4B5563]/20 animate-in fade-in duration-150">
+                <div className="flex justify-between items-center">
+                  <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider">Recovery Budget (Max Cost)</label>
+                  <span className="text-[9px] font-mono text-[#FD802E] font-bold">${budget}</span>
+                </div>
+                <input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(parseFloat(e.target.value) || 10)}
+                  disabled={mode === 'recovery' && simulationStatus !== 'idle' && simulationStatus !== 'completed'}
+                  className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2.5 py-1.5 rounded-lg outline-none font-mono text-xs focus:border-[#3B82F6]"
+                />
               </div>
+            )}
 
-              {selectedAlgo === 'dijkstra' && (
-                <div className="space-y-1 animate-in slide-in-from-top-1 duration-150">
-                  <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Target Infected Device</label>
-                  <select
-                    value={recoveryTarget}
-                    onChange={(e) => setRecoveryTarget(e.target.value)}
-                    disabled={mode === 'recovery' && simulationStatus !== 'idle'}
-                    className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
-                  >
-                    {/* Prefer infected nodes, but fall back to all non-source nodes */}
-                    {infectedNodes.length > 0
-                      ? infectedNodes.filter(id => id !== recoverySource).map(id => (
-                          <option key={id} value={id}>🔴 {id}</option>
-                        ))
-                      : originalNodes.filter(n => n.id !== recoverySource).map(n => (
-                          <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
-                        ))
-                    }
-                  </select>
+            {/* Recovery Source Selector */}
+            <div className="space-y-1">
+              <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Recovery Source (Server)</label>
+              {recoverySource && (
+                <div className="flex items-center gap-1.5 bg-[#0F1720]/80 border border-[#3B82F6]/40 rounded px-2 py-1 mb-1">
+                  <span className="text-[#3B82F6] text-[10px]">🛡️</span>
+                  <span className="font-mono text-[11px] text-[#F8FAFC] font-bold flex-1 truncate">{recoverySource}</span>
+                  <span className="text-[8px] bg-[#3B82F6]/20 text-[#3B82F6] px-1 rounded font-bold">SOURCE</span>
                 </div>
               )}
+              <select
+                value={recoverySource}
+                onChange={(e) => setRecoverySource(e.target.value)}
+                disabled={mode === 'recovery' && simulationStatus !== 'idle' && simulationStatus !== 'completed'}
+                className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
+              >
+                {originalNodes
+                  .filter(n => {
+                    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+                    return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
+                  })
+                  .map(n => (
+                    <option key={n.id} value={n.id}>{n.id} — {n.type}</option>
+                  ))}
+                {originalNodes.filter(n => {
+                  const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+                  return SERVER_TYPES.includes(n.type) && !infectedNodes.includes(n.id);
+                }).length === 0 && originalNodes
+                  .filter(n => !infectedNodes.includes(n.id))
+                  .map(n => (
+                    <option key={n.id} value={n.id}>{n.id} ({n.type})</option>
+                  ))
+                }
+              </select>
             </div>
-          )}
+
+            {/* Target Computer / Device Selector — Active across ALL algorithms */}
+            <div className="space-y-1 pt-1 border-t border-[#4B5563]/15">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] text-[#94A3B8] font-bold uppercase tracking-wider block">Target Device</label>
+                <span className="text-[8px] text-[#94A3B8] italic">Click canvas or select</span>
+              </div>
+
+              {recoveryTarget && (
+                <div className="flex items-center gap-1.5 bg-[#06B6D4]/10 border border-[#06B6D4]/40 rounded px-2 py-1 mb-1">
+                  <span className="text-[#06B6D4] text-[10px]">🎯</span>
+                  <span className="font-mono text-[11px] text-[#F8FAFC] font-bold flex-1 truncate">{recoveryTarget}</span>
+                  <span className="text-[8px] bg-[#06B6D4]/20 text-[#06B6D4] px-1 rounded font-bold">SELECTED TARGET</span>
+                </div>
+              )}
+
+              <select
+                value={recoveryTarget}
+                onChange={(e) => setRecoveryTarget(e.target.value)}
+                disabled={mode === 'recovery' && simulationStatus !== 'idle' && simulationStatus !== 'completed'}
+                className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
+              >
+                <optgroup label="Computers & Endpoints">
+                  {originalNodes
+                    .filter(n => n.id !== recoverySource && (n.type === 'PC' || n.type === 'Laptop' || n.id.startsWith('PC-') || n.id.startsWith('L-')))
+                    .map(n => {
+                      const state = nodeSimStates[n.id] || {};
+                      const isInfected = state.status === 'infected' || state.status === 'compromising';
+                      const isRec = state.status === 'recovered';
+                      const icon = isInfected ? '🔴' : isRec ? '🔵' : '💻';
+                      const statusSuffix = isInfected ? ' [INFECTED]' : isRec ? ' [RECOVERED]' : '';
+                      return (
+                        <option key={n.id} value={n.id}>
+                          {icon} {n.id} ({n.type}){statusSuffix}
+                        </option>
+                      );
+                    })
+                  }
+                </optgroup>
+                <optgroup label="Network Infrastructure">
+                  {originalNodes
+                    .filter(n => n.id !== recoverySource && n.type !== 'PC' && n.type !== 'Laptop' && !n.id.startsWith('PC-') && !n.id.startsWith('L-'))
+                    .map(n => {
+                      const state = nodeSimStates[n.id] || {};
+                      const isInfected = state.status === 'infected' || state.status === 'compromising';
+                      const isRec = state.status === 'recovered';
+                      const icon = isInfected ? '🔴' : isRec ? '🔵' : '🖥️';
+                      const statusSuffix = isInfected ? ' [INFECTED]' : isRec ? ' [RECOVERED]' : '';
+                      return (
+                        <option key={n.id} value={n.id}>
+                          {icon} {n.id} ({n.type}){statusSuffix}
+                        </option>
+                      );
+                    })
+                  }
+                </optgroup>
+              </select>
+            </div>
+          </div>
 
           {errorMsg && (
             <div className="p-2.5 bg-[#EF4444]/10 border border-[#EF4444]/20 text-[#EF4444] rounded text-[10px] font-mono leading-normal">
@@ -310,13 +360,13 @@ function RecoveryWorkspace() {
           )}
 
           {/* Action button */}
-          {simulationStatus === 'idle' && (
+          {(simulationStatus === 'idle' || simulationStatus === 'completed') && (
             <button
               onClick={handlePlayPause}
               className="w-full py-2.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] font-bold rounded-lg shadow-lg flex items-center justify-center gap-1.5 transition-colors uppercase"
             >
               <Play className="h-4 w-4" />
-              Run Recovery Planner
+              {simulationStatus === 'completed' ? 'Re-Run Recovery Planner' : 'Run Recovery Planner'}
             </button>
           )}
         </div>
@@ -543,11 +593,10 @@ function RecoveryWorkspace() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // One-click: run Dijkstra from recovery server to this infected device
-                                recoverDeviceWithDijkstra(nodeId);
+                                recoverDevice(nodeId);
                               }}
-                              title={`Run Dijkstra: ${recoverySource} → ${nodeId}`}
-                              className="px-1.5 py-0.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                              title={`Recover ${nodeId} using ${selectedAlgo.toUpperCase()}`}
+                              className="px-1.5 py-0.5 bg-[#3B82F6] hover:bg-[#60A5FA] text-[#F8FAFC] text-[8px] font-bold rounded uppercase transition-colors"
                             >
                               Recover
                             </button>

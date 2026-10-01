@@ -1,10 +1,11 @@
 import React from 'react';
 import { useStore } from '../../store/store';
+import { useSimulation } from '../../context/SimulationContext';
 
 /**
  * File: HoverDeskTooltip.tsx
  * Purpose: Lightweight hover tooltip shown when mousing over a desk in the OfficeFloor canvas.
- * Unlike DeskMenuModal (full modal), this is a small non-blocking info card.
+ * Displays real-time device attack compromise %, CRT screen state, and worker status.
  */
 
 const STATUS_COLORS: Record<string, string> = {
@@ -15,25 +16,65 @@ const STATUS_COLORS: Record<string, string> = {
   success: '#3B82F6',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  working: 'Online - Working',
-  thinking: 'Thinking...',
-  idle: 'On Break',
-  blocked: 'Compromised / Blocked',
-  success: 'Recovered',
+const getDeskNodeId = (deskIdx: number) => {
+  if (deskIdx === 0) return 'SRV-1';
+  if (deskIdx >= 1 && deskIdx <= 8) return `PC-${deskIdx}`;
+  if (deskIdx === 9) return 'L-1';
+  return null;
 };
 
 export const HoverDeskTooltip: React.FC = () => {
   const { hoverDeskInfo, agents } = useStore();
+  const { nodeSimStates } = useSimulation();
 
   if (!hoverDeskInfo) return null;
 
   const { deskIndex, agentId, screenX, screenY } = hoverDeskInfo;
   const agent = agentId ? agents.find((a) => a.id === agentId) : undefined;
+  const nodeId = getDeskNodeId(deskIndex);
+  const simState = nodeId && nodeSimStates ? nodeSimStates[nodeId] : null;
 
-  const TOOLTIP_WIDTH = 220;
-  const TOOLTIP_HEIGHT = 130;
-  const OFFSET = 12;
+  const simStatus = simState?.status || 'healthy';
+  const simProgress = Math.round(simState?.progress ?? (simStatus === 'infected' ? 100 : 0));
+
+  // Determine device state styling & description
+  let deviceColor = '#22C55E';
+  let deviceBadge = 'HEALTHY';
+  let screenDesc = 'CRT: Active Code Stream';
+  let isUnderAttack = false;
+
+  const isServer = nodeId === 'SRV-1';
+
+  if (simStatus === 'compromising') {
+    deviceColor = '#F97316';
+    deviceBadge = isServer ? `SRV BREACH ${simProgress}% [SOS]` : `BREACHING ${simProgress}%`;
+    screenDesc = isServer ? `Server Rack: 🔴 SOS Morse Red LEDs (${simProgress}%)` : `CRT: Warming Red Tint (${simProgress}%)`;
+    isUnderAttack = true;
+  } else if (simStatus === 'infected') {
+    deviceColor = '#EF4444';
+    deviceBadge = isServer ? 'SRV COMPROMISED [SOS]' : 'INFECTED (100%)';
+    screenDesc = isServer ? 'Server Rack: 🔴 SOS Morse Red Light + Beacon' : 'CRT: 🔴 Red Strobe Skull Alert';
+    isUnderAttack = true;
+  } else if (simStatus === 'recovering') {
+    deviceColor = '#06B6D4';
+    deviceBadge = isServer ? `SRV PATCHING ${simProgress}%` : `PATCHING ${simProgress}%`;
+    screenDesc = isServer ? 'Server Rack: 🛡️ Antivirus Cyan Sweep' : 'CRT: 🛡️ Antivirus Matrix Sweep';
+  } else if (simStatus === 'recovered') {
+    deviceColor = '#10B981';
+    deviceBadge = isServer ? 'SRV SECURED' : 'SECURED';
+    screenDesc = isServer ? 'Server Rack: 🟢 Green & 🟡 Yellow LEDs Active' : 'CRT: Restored Code IDE';
+  } else if (simStatus === 'offline') {
+    deviceColor = '#6B7280';
+    deviceBadge = 'OFFLINE / ISOLATED';
+    screenDesc = 'CRT: Power Standby';
+  } else if (isServer && simStatus === 'healthy') {
+    deviceBadge = 'SRV ONLINE';
+    screenDesc = 'Server Rack: 🟢 Green & 🟡 Yellow LEDs Active';
+  }
+
+  const TOOLTIP_WIDTH = 240;
+  const TOOLTIP_HEIGHT = 160;
+  const OFFSET = 14;
 
   // Position tooltip near cursor, flipping when close to viewport edges
   let left = screenX + OFFSET;
@@ -49,7 +90,7 @@ export const HoverDeskTooltip: React.FC = () => {
   }
   top = Math.max(8, top);
 
-  const statusColor = agent ? (STATUS_COLORS[agent.status] || '#6B7280') : '#6B7280';
+  const statusColor = isUnderAttack ? '#EF4444' : agent ? (STATUS_COLORS[agent.status] || '#6B7280') : '#6B7280';
 
   return (
     <div
@@ -64,11 +105,12 @@ export const HoverDeskTooltip: React.FC = () => {
     >
       <div
         style={{
-          background: 'linear-gradient(135deg, #1B2838 0%, #0F1720 100%)',
-          border: '1.5px solid ' + statusColor + '55',
+          background: 'linear-gradient(135deg, rgba(17,24,39,0.96) 0%, rgba(15,23,42,0.98) 100%)',
+          border: `1.5px solid ${deviceColor}66`,
           borderRadius: '10px',
           padding: '10px 12px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.55), 0 0 0 1px ' + statusColor + '20',
+          boxShadow: `0 8px 24px rgba(0,0,0,0.65), 0 0 12px ${deviceColor}33`,
+          backdropFilter: 'blur(8px)',
           fontFamily: "'Courier New', monospace",
           animation: 'tooltipFadeIn 0.15s ease-out',
         }}
@@ -77,38 +119,82 @@ export const HoverDeskTooltip: React.FC = () => {
 
         {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <span style={{ fontSize: '9px', color: '#94A3B8', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 'bold' }}>
-            DESK #{deskIndex + 1}
+          <span style={{ fontSize: '10px', color: '#94A3B8', letterSpacing: '0.8px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+            DESK #{deskIndex + 1} {nodeId ? `[${nodeId}]` : ''}
           </span>
-          {agent && (
-            <span style={{ fontSize: '8px', background: statusColor + '20', color: statusColor, padding: '1px 6px', borderRadius: '4px', border: '1px solid ' + statusColor + '40', textTransform: 'uppercase', fontWeight: 'bold' }}>
-              {agent.status}
-            </span>
-          )}
+          <span
+            style={{
+              fontSize: '8px',
+              background: deviceColor + '22',
+              color: deviceColor,
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: `1px solid ${deviceColor}66`,
+              textTransform: 'uppercase',
+              fontWeight: 'bold',
+              letterSpacing: '0.5px'
+            }}
+          >
+            {deviceBadge}
+          </span>
         </div>
 
         {agent ? (
           <>
             <div style={{ marginBottom: '6px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#F8FAFC', marginBottom: '2px' }}>
-                {agent.name}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#F8FAFC' }}>
+                  {agent.name}
+                </span>
+                {isUnderAttack && (
+                  <span style={{ fontSize: '9px', color: '#F87171', animation: 'pulse 1s infinite' }}>
+                    😱 PANIC!
+                  </span>
+                )}
               </div>
-              <div style={{ fontSize: '9px', color: '#94A3B8', lineHeight: '1.5' }}>
+              <div style={{ fontSize: '9px', color: '#94A3B8', lineHeight: '1.4' }}>
                 {agent.description}
               </div>
             </div>
 
-            <div style={{ background: '#0F1720', border: '1px solid #374151', borderRadius: '6px', padding: '5px 8px' }}>
-              <div style={{ fontSize: '8px', color: '#FD802E', fontWeight: 'bold', marginBottom: '2px', textTransform: 'uppercase' }}>Network Device Status</div>
-              <div style={{ fontSize: '9px', color: statusColor, fontWeight: 'bold' }}>{STATUS_LABELS[agent.status]}</div>
-              <div style={{ fontSize: '8px', color: '#6B7280', marginTop: '3px' }}>Hover = Info | Click = Full Controls</div>
+            {/* CRT Monitor & Device Telemetry card */}
+            <div style={{ background: '#090D14', border: '1px solid #1E293B', borderRadius: '6px', padding: '6px 8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                <span style={{ fontSize: '8px', color: '#FD802E', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Hardware CRT & Virus State
+                </span>
+                <span style={{ fontSize: '8px', color: deviceColor, fontWeight: 'bold' }}>
+                  {simStatus.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Progress bar for breach or patching */}
+              {(simStatus === 'compromising' || simStatus === 'recovering') && (
+                <div style={{ width: '100%', height: '4px', background: '#1E293B', borderRadius: '2px', overflow: 'hidden', margin: '4px 0' }}>
+                  <div
+                    style={{
+                      width: `${simProgress}%`,
+                      height: '100%',
+                      background: simStatus === 'compromising' ? 'linear-gradient(90deg, #F97316, #EF4444)' : 'linear-gradient(90deg, #06B6D4, #10B981)',
+                      transition: 'width 0.2s linear'
+                    }}
+                  />
+                </div>
+              )}
+
+              <div style={{ fontSize: '8.5px', color: '#CBD5E1', marginTop: '2px' }}>
+                {screenDesc}
+              </div>
+              <div style={{ fontSize: '7.5px', color: '#64748B', marginTop: '4px' }}>
+                Hover = Status | Click = Seat Options
+              </div>
             </div>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '8px 0', color: '#6B7280', fontSize: '10px' }}>
-            <div style={{ fontSize: '20px', marginBottom: '4px' }}>Empty</div>
-            <div>Empty Desk</div>
-            <div style={{ fontSize: '8px', color: '#4B5563', marginTop: '2px' }}>Click to assign a worker</div>
+            <div style={{ fontSize: '16px', marginBottom: '2px' }}>🖥️</div>
+            <div style={{ color: '#E2E8F0', fontWeight: 'bold', fontSize: '9.5px' }}>{screenDesc}</div>
+            <div style={{ fontSize: '8px', color: '#64748B', marginTop: '2px' }}>Click to assign a worker</div>
           </div>
         )}
       </div>

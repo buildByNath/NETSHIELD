@@ -42,7 +42,8 @@ const edgeTypes = {
 };
 
 const SPEED_LEVELS = [
-  { value: 0.5, label: '0.5x (Teaching)' },
+  { value: 0.25, label: '0.25x (Slow-Mo)' },
+  { value: 0.5, label: '0.5x (Slow / Study)' },
   { value: 1.0, label: '1.0x (Normal)' },
   { value: 2.0, label: '2.0x (Fast)' },
   { value: 4.0, label: '4.0x (Demo)' }

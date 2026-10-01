@@ -22,7 +22,15 @@ import { useSimulation } from '../context/SimulationContext';
 
 export default function NetworkBuilder() {
   const { agents, selectedAgentId, setAgentStatus } = useOfficeStore();
-  const { nodes, simulationStatus } = useSimulation();
+  const {
+    originalNodes,
+    simulationStatus,
+    nodeSimStates,
+    triggerAttack,
+    triggerRecovery,
+    resetPlayback,
+    recoverySource
+  } = useSimulation();
 
   const [officeTheme, setOfficeTheme] = useState('office');
   const officeThemeSetter = useOfficeStore((s) => s.setOfficeTheme);
@@ -45,15 +53,42 @@ export default function NetworkBuilder() {
     agents.forEach((a) => setAgentStatus(a.id, 'idle'));
   };
 
+  const handleSimulateAttack = () => {
+    const startNode = originalNodes.find(n => n.type === 'PC')?.id || 'PC-1';
+    triggerAttack('bfs', [startNode]);
+  };
+
+  const handleSimulateRecovery = () => {
+    const src = recoverySource || originalNodes.find(n => n.type?.includes('Server'))?.id || 'SRV-1';
+    triggerRecovery('dijkstra', { source: src, destination: 'PC-1' });
+  };
+
+  const handleResetSim = () => {
+    resetPlayback();
+    agents.forEach((a) => setAgentStatus(a.id, 'working'));
+  };
+
   const handleThemeChange = (theme) => {
     setOfficeTheme(theme);
     officeThemeSetter(theme);
   };
 
-  // Compute network stats from simulation context
-  const totalDevices = agents.length;
-  const healthyCount = agents.filter(a => a.status === 'working').length;
-  const infectedCount = agents.filter(a => a.status === 'blocked').length;
+  // Compute network stats from live simulation context & agents
+  const activeSimInfected = Object.values(nodeSimStates).filter(
+    s => s.status === 'infected' || s.status === 'compromising'
+  ).length;
+  const activeSimCompromising = Object.values(nodeSimStates).filter(
+    s => s.status === 'compromising'
+  ).length;
+  const hasActiveSim = simulationStatus !== 'idle' || activeSimInfected > 0;
+  const healthyCount = hasActiveSim
+    ? (originalNodes.length > 0
+        ? originalNodes.filter(n => (nodeSimStates[n.id]?.status === 'healthy' || nodeSimStates[n.id]?.status === 'recovered') || !nodeSimStates[n.id]).length
+        : agents.filter(a => a.status === 'working').length)
+    : agents.filter(a => a.status === 'working').length;
+  const infectedCount = hasActiveSim
+    ? activeSimInfected
+    : agents.filter(a => a.status === 'blocked').length;
   const offlineCount = agents.filter(a => a.status === 'idle').length;
 
   return (
@@ -96,12 +131,13 @@ export default function NetworkBuilder() {
             style={{
               fontFamily: 'var(--cth-font-display)',
               fontSize: '7px',
-              background: 'var(--cth-mint)',
+              background: simulationStatus === 'running' ? 'var(--cth-coral, #EF4444)' : 'var(--cth-mint)',
               color: 'var(--cth-ink-900)',
               padding: '2px 6px',
+              fontWeight: 'bold',
             }}
           >
-            LIVE SIM
+            {simulationStatus === 'running' ? '⚡ ATTACK ACTIVE' : 'LIVE SIM'}
           </span>
 
           {/* Network Health Stats */}
@@ -109,6 +145,11 @@ export default function NetworkBuilder() {
             <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-mint)' }}>
               🟢 {healthyCount} healthy
             </span>
+            {activeSimCompromising > 0 && (
+              <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-lemon)' }}>
+                🟠 {activeSimCompromising} breaching...
+              </span>
+            )}
             <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: '7px', color: 'var(--cth-coral)' }}>
               🔴 {infectedCount} infected
             </span>
@@ -119,7 +160,7 @@ export default function NetworkBuilder() {
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {/* Theme Switcher */}
           <select
             value={officeTheme}
@@ -138,14 +179,17 @@ export default function NetworkBuilder() {
             <option value="brooklyn99">🚔 Brooklyn 99</option>
           </select>
 
+          <PixelButton size="sm" variant="danger" onClick={handleSimulateAttack}>
+            🔥 Attack Office
+          </PixelButton>
+          <PixelButton size="sm" variant="primary" onClick={handleSimulateRecovery}>
+            🛡️ Auto Recover
+          </PixelButton>
+          <PixelButton size="sm" variant="secondary" onClick={handleResetSim}>
+            🔄 Reset
+          </PixelButton>
           <PixelButton size="sm" variant="primary" onClick={handleSimulateWork}>
             ⚡ Randomize
-          </PixelButton>
-          <PixelButton size="sm" variant="success" onClick={handleAllWorking}>
-            💻 All Online
-          </PixelButton>
-          <PixelButton size="sm" variant="secondary" onClick={handleAllIdle}>
-            ☕ All Offline
           </PixelButton>
         </div>
       </header>

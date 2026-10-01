@@ -52,8 +52,10 @@ export default function CustomNode({ id, data, selected }) {
   const progressVal = data.progress ?? 0;
   const mode = data.mode ?? 'idle';
   const isRecoverySource = data.isRecoverySource ?? false;
+  const isRecoveryTarget = data.isRecoveryTarget ?? false;
 
   const [hovered, setHovered] = useState(false);
+  const isServer = (type && type.includes('Server')) || (id && id.startsWith('SRV'));
 
   // simActive: simulation is running — keep all nodes fully visible, not dimmed
   const simActive = data.simActive ?? false;
@@ -75,9 +77,9 @@ export default function CustomNode({ id, data, selected }) {
     switch (status) {
       case 'infected':
         return {
-          bg: 'rgba(239,68,68,0.15)',
-          border: '1px solid #EF4444',
-          boxShadow: '0 0 14px rgba(239,68,68,0.5)',
+          bg: isServer ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.15)',
+          border: isServer ? '2px solid #EF4444' : '1px solid #EF4444',
+          boxShadow: isServer ? '0 0 20px rgba(239,68,68,0.8)' : '0 0 14px rgba(239,68,68,0.5)',
           iconColor: '#EF4444',
           labelColor: '#F8FAFC',
           subColor: '#94A3B8',
@@ -86,10 +88,10 @@ export default function CustomNode({ id, data, selected }) {
       case 'compromising':
       case 'reached':
         return {
-          bg: 'rgba(253,128,46,0.10)',
-          border: '1px solid #FD802E',
-          boxShadow: '0 0 12px rgba(253,128,46,0.5)',
-          iconColor: '#FD802E',
+          bg: isServer ? 'rgba(239,68,68,0.20)' : 'rgba(253,128,46,0.10)',
+          border: isServer ? '2px solid #EF4444' : '1px solid #FD802E',
+          boxShadow: isServer ? '0 0 18px rgba(239,68,68,0.7)' : '0 0 12px rgba(253,128,46,0.5)',
+          iconColor: isServer ? '#EF4444' : '#FD802E',
           labelColor: '#F8FAFC',
           subColor: '#94A3B8',
           pulse: true
@@ -194,6 +196,38 @@ export default function CustomNode({ id, data, selected }) {
         </div>
       </div>
 
+      {/* Server Hardware Rack LED indicators */}
+      {isServer && (
+        <div 
+          className="w-full mt-1 px-1.5 py-0.5 rounded flex items-center justify-between text-[7.5px] font-mono border"
+          style={{
+            backgroundColor: (status === 'compromising' || status === 'infected') ? '#3B0F16' : '#0F1720',
+            borderColor: (status === 'compromising' || status === 'infected') ? '#EF4444' : 'rgba(34,197,94,0.3)'
+          }}
+        >
+          {(status === 'compromising' || status === 'infected') ? (
+            <>
+              <span className="text-[#EF4444] font-black flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444] animate-ping" />
+                🚨 SOS ALARM
+              </span>
+              <span className="text-[#FCA5A5] font-extrabold tracking-widest animate-pulse">
+                ••• ——— •••
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-[#94A3B8] font-bold">RACK LEDs</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" title="Link / Power (Green)" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#EAB308] animate-ping" title="IOPS Activity (Yellow)" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" title="Network Heartbeat (Green)" />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Interactive progress bar */}
       {showProgress && (
         <div className="w-full mt-1.5 flex flex-col gap-0.5 border-t border-[#4B5563]/10 pt-1.5">
@@ -239,6 +273,14 @@ export default function CustomNode({ id, data, selected }) {
         <div className="flex items-center gap-0.5 mt-1 text-[7.5px] font-mono bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded px-1 py-0.5">
           <span className="text-[#3B82F6] font-black">🛡️</span>
           <span className="text-[#3B82F6] font-bold uppercase tracking-wider">RECOVERY SOURCE</span>
+        </div>
+      )}
+
+      {/* Recovery Target Badge */}
+      {isRecoveryTarget && !isIsolated && (
+        <div className="flex items-center gap-0.5 mt-1 text-[7.5px] font-mono bg-[#06B6D4]/15 border border-[#06B6D4]/40 rounded px-1 py-0.5 animate-pulse">
+          <span className="text-[#06B6D4] font-black">🎯</span>
+          <span className="text-[#06B6D4] font-bold uppercase tracking-wider">TARGET DEVICE</span>
         </div>
       )}
 

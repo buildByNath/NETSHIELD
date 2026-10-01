@@ -11,7 +11,7 @@ import { ThoughtBubble } from './ThoughtBubble';
 // cover our status model.
 
 export type CharacterAnimation = 'idle' | 'walk' | 'type' | 'read';
-export type StatusGlyph = 'none' | 'blocked' | 'success' | 'compacting' | 'looping';
+export type StatusGlyph = 'none' | 'blocked' | 'success' | 'compacting' | 'looping' | 'panic';
 
 function lerp(a: number, b: number, t: number): number {
   const tt = Math.min(Math.max(t, 0), 1);
@@ -126,6 +126,8 @@ export class Character {
   private smokeT = -1;                // -1 = not smoking (the boss's cigar)
   private smokeDur = 0;
   private onSmokeDone: (() => void) | null = null;
+  private isPanicking = false;
+  private panicT = 0;
 
   constructor(options: CharacterOptions) {
     this.agentId = options.agentId;
@@ -373,6 +375,37 @@ export class Character {
     this.statusGlyph = glyph;
     this.glyphElapsed = 0;
     if (glyph === 'none') this.overlay.clear();
+  }
+
+  /** Trigger or clear panic state when the desk PC is under virus attack */
+  setPanic(panicking: boolean, message?: string): void {
+    if (panicking === this.isPanicking) return;
+    this.isPanicking = panicking;
+    this.panicT = 0;
+
+    if (panicking) {
+      this.setStatusGlyph('panic');
+      const panicMsgs = [
+        "VIRUS ATTACK! 😱",
+        "PC HACKED! 💀",
+        "SYSTEM BREACH! 🚨",
+        "MALWARE DETECTED! ⚠️",
+        "HELP! RED SCREEN! 🔥"
+      ];
+      const msg = message || panicMsgs[Math.floor(Math.random() * panicMsgs.length)];
+      this.showThought(msg);
+    } else {
+      this.setStatusGlyph('success');
+      this.showThought('System Secured! 🛡️');
+      this.sprite.setPosition(this.px, this.py);
+      if (this.sitting) {
+        this.sprite.setAnimation('type', this.seatDirection);
+      }
+    }
+  }
+
+  isPanic(): boolean {
+    return this.isPanicking;
   }
 
   // ── Cheer ──────────────────────────────────────────────────────────────────
@@ -633,13 +666,37 @@ export class Character {
     }
 
     // ── Sprite-riding effects ────────────────────────────────────────────────
-    const active = this.cheerT >= 0 || this.waterT >= 0 || this.smokeT >= 0 || this.carryingCup;
+    const active = this.cheerT >= 0 || this.waterT >= 0 || this.smokeT >= 0 || this.carryingCup || this.isPanicking;
     if (!active) {
       if (this.fxDirty) { this.fx.clear(); this.fxDirty = false; }
       return;
     }
     this.fx.clear();
     this.fxDirty = true;
+
+    // Panic: high-frequency jitter shake, flying sweat drops, frantic head turns
+    if (this.isPanicking) {
+      this.panicT += dt;
+      // High-frequency jitter shake on character position
+      const shakeX = Math.sin(this.panicT * 32) * 1.5;
+      const shakeY = Math.abs(Math.sin(this.panicT * 20)) * 1.2;
+      this.sprite.setPosition(this.px + shakeX, this.py - shakeY);
+
+      // Flying sweat droplets arcing off the head
+      for (let i = 0; i < 2; i++) {
+        const ph = (this.panicT * 2.2 + i * 0.5) % 1;
+        const side = i === 0 ? -1 : 1;
+        const dropX = side * (5 + ph * 7);
+        const dropY = -24 + ph * ph * 12;
+        this.fx.rect(Math.round(dropX), Math.round(dropY), 1, 2)
+          .fill({ color: 0x38bdf8, alpha: 1 - ph * 0.4 });
+      }
+
+      // Frantic head turning left-right every 0.35s
+      const turnPhase = Math.floor(this.panicT / 0.35) % 2;
+      const panicDir: Direction = turnPhase === 0 ? 'left' : 'right';
+      this.sprite.setAnimation('type', panicDir);
+    }
 
     // Cheer: happy hops + a confetti burst, ~1.6s, then back to whatever the
     // avatar was doing (movement is held meanwhile — see update()).
@@ -762,6 +819,14 @@ export class Character {
         const [x, y] = pts[i];
         g.rect(x - 1, y - 1, 2, 2).fill(i === idx ? 0xff9f43 : 0x6b5878);
       }
+    } else if (this.statusGlyph === 'panic') {
+      // Rapidly flashing red alarm glyph (double exclamation !! in siren colors)
+      const flash = Math.floor(this.glyphElapsed / 0.16) % 2 === 0;
+      const col = flash ? 0xff1e1e : 0xffa500;
+      g.rect(-3, yTop, 2, 5).fill(col);
+      g.rect(-3, yTop + 6, 2, 2).fill(col);
+      g.rect(1, yTop, 2, 5).fill(col);
+      g.rect(1, yTop + 6, 2, 2).fill(col);
     }
   }
 

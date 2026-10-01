@@ -134,10 +134,11 @@ const ALGORITHMS = [
 
 // Speed playback level selections
 const SPEED_LEVELS = [
-  { label: '0.5x', value: 0.5 },
-  { label: '1.0x', value: 1.0 },
-  { label: '1.5x', value: 1.5 },
-  { label: '2.0x', value: 2.0 }
+  { label: '0.25x (Slow-Mo)', value: 0.25 },
+  { label: '0.5x (Slow)', value: 0.5 },
+  { label: '1.0x (Normal)', value: 1.0 },
+  { label: '1.5x (Brisk)', value: 1.5 },
+  { label: '2.0x (Fast)', value: 2.0 }
 ];
 
 // ── Backend Data Flow step-by-step narration per algorithm ───────────────────
@@ -478,7 +479,7 @@ export default function LearningMode() {
     if (playbackInterval.current) clearInterval(playbackInterval.current);
 
     if (isPlaying && timeline.length > 0) {
-      const stepDuration = 600 / speed;
+      const stepDuration = Math.max(250, Math.round(900 / speed));
       playbackInterval.current = setInterval(() => {
         setCurrentFrame(prev => {
           if (prev >= timeline.length - 1) {

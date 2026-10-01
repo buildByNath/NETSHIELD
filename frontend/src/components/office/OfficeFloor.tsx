@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
 import 'pixi.js/unsafe-eval';
-import { useStore, type Agent } from '../../store/store';
+import { useStore, type Agent, type AgentStatus } from '../../store/store';
 import { TiledMapRenderer } from '../../scene/TiledMapRenderer';
 import { Camera } from '../../scene/Camera';
 import { Character, paintCup } from '../../scene/Character';
-import { DeskScreen } from '../../scene/DeskScreen';
+import { DeskScreen, type ScreenStatus } from '../../scene/DeskScreen';
+import { useSimulation } from '../../context/SimulationContext';
 import { MessageEnvelope } from '../../scene/MessageEnvelope';
 import { hexToNumber, getCastFrames } from '../../scene/cast';
 import { type BreakSpot } from '../../scene/cafeteriaLines';
@@ -108,6 +109,12 @@ export function OfficeFloor() {
   const mountIdRef = useRef(0);
   const [glGeneration, setGlGeneration] = useState(0);
   const officeTheme = useStore((s) => s.officeTheme);
+
+  const { nodeSimStates } = useSimulation();
+  const simStatesRef = useRef(nodeSimStates);
+  useEffect(() => {
+    simStatesRef.current = nodeSimStates;
+  }, [nodeSimStates]);
 
   const [docHidden, setDocHidden] = useState(() => document.hidden);
   useEffect(() => {
@@ -269,18 +276,130 @@ export function OfficeFloor() {
         const w = serverWidth;
         const h = serverHeight;
 
-        // Dark PC window frame & floor mat
-        serverRoomG.rect(0, 0, w, h).fill({ color: 0x16161c, alpha: 0.95 }).stroke({ color: isServerLocked ? 0x5ca97a : 0x4f9faf, width: 2 });
-        serverRoomG.rect(2, 2, w - 4, h - 4).stroke({ color: 0x3d2e4a, width: 1 });
+        // Determine server status from live simulation states
+        const simStates = simStatesRef.current || {};
+        let srvState: any = simStates['SRV-1'];
+        if (!srvState) {
+          for (const [id, s] of Object.entries(simStates)) {
+            if (id.startsWith('SRV') || id.toLowerCase().includes('server')) {
+              srvState = s;
+              break;
+            }
+          }
+        }
+        const srvStatus = srvState?.status || 'healthy';
+        const isServerAttacked = srvStatus === 'compromising' || srvStatus === 'infected';
+        const isServerRecovering = srvStatus === 'recovering';
+        const isServerHealthy = srvStatus === 'recovered' || srvStatus === 'healthy';
+
+        // ── Fast SOS Morse Code Timing (Unit U = 0.10s) ───────────────────────
+        // S = . . . (1U on, 1U off, 1U on, 1U off, 1U on, 3U char gap)  -> 7U total
+        // O = — — — (3U on, 1U off, 3U on, 1U off, 3U on, 3U char gap)  -> 14U total
+        // S = . . . (1U on, 1U off, 1U on, 1U off, 1U on, 7U word gap)  -> 13U total
+        // Total sequence: 34 units (3.40 seconds per SOS loop)
+        const MORSE_U = 0.10;
+        const MORSE_CYCLE = 34;
+        const morseStep = Math.floor((tSec / MORSE_U) % MORSE_CYCLE);
+
+        // Calculate if red LED is ON for current Morse unit
+        const isSosLedOn =
+          morseStep === 0 || morseStep === 2 || morseStep === 4 ||                   // S (. . .)
+          (morseStep >= 8 && morseStep <= 10) ||                                     // O (—)
+          (morseStep >= 12 && morseStep <= 14) ||                                    // O (—)
+          (morseStep >= 16 && morseStep <= 18) ||                                    // O (—)
+          morseStep === 22 || morseStep === 24 || morseStep === 26;                 // S (. . .)
+
+        // Morse letter active currently ('S' | 'O' | 'S' | ' ')
+        const morseLetter = morseStep <= 6 ? 'S' : (morseStep >= 8 && morseStep <= 20) ? 'O' : (morseStep >= 22 && morseStep <= 27) ? 'S' : '';
+
+        // ── Server Chassis Color Scheme ──────────────────────────────────────
+        // If attacked: default dark steel shifts to RED
+        // If recovering: cyan matrix sweep
+        // If recovered / healthy: default dark slate & steel
+        let frameBg = 0x16161c;
+        let frameBorder = isServerLocked ? 0x5ca97a : 0x4f9faf;
+        let frameInnerBorder = 0x3d2e4a;
+        let headerBg = 0x24242c;
+        let headerBorder = isServerLocked ? 0x5ca97a : 0x4f9faf;
+        let headerInner = 0x3d2e4a;
+        let cabFrame = 0x22222a;
+        let cabBorder = 0x4a3b52;
+        let cabInner = 0x111116;
+        let bladeBg = 0x282c34;
+
+        if (isServerAttacked) {
+          // Entire server casing changes into RED
+          frameBg = 0x25060a;
+          frameBorder = isSosLedOn ? 0xff2222 : 0x991b1b;
+          frameInnerBorder = 0x5c0d16;
+          headerBg = 0x7f1d1d;
+          headerBorder = isSosLedOn ? 0xff3b30 : 0xb91c1c;
+          headerInner = 0x991b1b;
+          cabFrame = 0x2b0d12;
+          cabBorder = 0x7f1d1d;
+          cabInner = 0x170407;
+          bladeBg = 0x3b0f16;
+        } else if (isServerRecovering) {
+          frameBg = 0x0c1e28;
+          frameBorder = 0x06b6d4;
+          frameInnerBorder = 0x155e75;
+          headerBg = 0x164e63;
+          headerBorder = 0x22d3ee;
+          headerInner = 0x0891b2;
+          cabFrame = 0x112836;
+          cabBorder = 0x0891b2;
+          cabInner = 0x08151e;
+          bladeBg = 0x155e75;
+        }
+
+        // Ambient alarm glow around server when attacked
+        if (isServerAttacked && isSosLedOn) {
+          serverRoomG.rect(-4, -18, w + 8, h + 22).fill({ color: 0xff0000, alpha: 0.16 });
+        }
+
+        // Server Room floor mat & outer casing
+        serverRoomG.rect(0, 0, w, h).fill({ color: frameBg, alpha: 0.96 }).stroke({ color: frameBorder, width: isServerAttacked ? 2.5 : 2 });
+        serverRoomG.rect(2, 2, w - 4, h - 4).stroke({ color: frameInnerBorder, width: 1 });
 
         // PC Window Title Bar Header
-        serverRoomG.rect(0, -14, w, 14).fill(0x24242c).stroke({ color: isServerLocked ? 0x5ca97a : 0x4f9faf, width: 1 });
-        serverRoomG.rect(2, -12, w - 4, 10).fill(0x3d2e4a);
+        serverRoomG.rect(0, -14, w, 14).fill(headerBg).stroke({ color: headerBorder, width: 1 });
+        serverRoomG.rect(2, -12, w - 4, 10).fill(headerInner);
+
+        // Emergency Siren Dome on Header (Top right)
+        const sirenX = w - 10;
+        if (isServerAttacked) {
+          serverRoomG.rect(sirenX - 4, -13, 8, 3).fill(0x333333);
+          if (isSosLedOn) {
+            serverRoomG.circle(sirenX, -15, 6.5).fill({ color: 0xff0000, alpha: 0.55 });
+            serverRoomG.circle(sirenX, -15, 3.5).fill(0xff2222);
+          } else {
+            serverRoomG.circle(sirenX, -15, 3.5).fill(0x7f1d1d);
+          }
+        } else {
+          // Healthy green status beacon on roof
+          serverRoomG.circle(sirenX, -7, 2.5).fill(0x22c55e);
+        }
 
         // Lock Position Button on Header
         lockBtnG.position.set(4, -12);
-        const lockTextWidth = 72;
+        const lockTextWidth = 56;
         lockBtnG.rect(0, 0, lockTextWidth, 10).fill(isServerLocked ? 0x2e4a36 : 0x4a3b52).stroke({ color: isServerLocked ? 0x5ca97a : 0xdcab3c, width: 1 });
+
+        // Header Alert Badge when server is attacked (displays Morse SOS letters)
+        if (isServerAttacked && w >= 130) {
+          const badgeX = lockTextWidth + 6;
+          serverRoomG.rect(badgeX, -12, 54, 10).fill(isSosLedOn ? 0xb91c1c : 0x450a0a).stroke({ color: 0xef4444, width: 1 });
+          // Morse code visual dot/dash feedback
+          if (morseLetter === 'S') {
+            serverRoomG.circle(badgeX + 16, -7, 1.8).fill(0xffffff);
+            serverRoomG.circle(badgeX + 24, -7, 1.8).fill(0xffffff);
+            serverRoomG.circle(badgeX + 32, -7, 1.8).fill(0xffffff);
+          } else if (morseLetter === 'O') {
+            serverRoomG.rect(badgeX + 12, -8, 6, 2.2).fill(0xffffff);
+            serverRoomG.rect(badgeX + 22, -8, 6, 2.2).fill(0xffffff);
+            serverRoomG.rect(badgeX + 32, -8, 6, 2.2).fill(0xffffff);
+          }
+        }
 
         // Dynamically compute cabinet rack columns
         const numCabinets = Math.max(1, Math.floor((w - 12) / 48));
@@ -292,23 +411,75 @@ export function OfficeFloor() {
           const cabHeight = h - 8;
 
           // Cabinet frame
-          serverRoomG.rect(rx, ry, cabWidth, cabHeight).fill(0x22222a).stroke({ color: 0x4a3b52, width: 1 });
-          serverRoomG.rect(rx + 2, ry + 2, cabWidth - 4, cabHeight - 4).fill(0x111116);
+          serverRoomG.rect(rx, ry, cabWidth, cabHeight).fill(cabFrame).stroke({ color: cabBorder, width: 1 });
+          serverRoomG.rect(rx + 2, ry + 2, cabWidth - 4, cabHeight - 4).fill(cabInner);
 
           // Server blades & activity LEDs
           const numBlades = Math.max(2, Math.floor((cabHeight - 8) / 11));
           for (let b = 0; b < numBlades; b++) {
             const by = ry + 4 + b * 11;
-            serverRoomG.rect(rx + 4, by, cabWidth - 8, 8).fill(0x282c34);
+            serverRoomG.rect(rx + 4, by, cabWidth - 8, 8).fill(bladeBg);
 
-            const led1 = Math.sin(tSec * (4 + i) + b) > 0;
-            const led2 = Math.cos(tSec * (6 + i) + b * 2) > 0;
-            const led3 = Math.sin(tSec * 8 + b * 3) > 0;
+            if (cabWidth >= 28) {
+              const ledX1 = rx + cabWidth - 20;
+              const ledX2 = rx + cabWidth - 14;
+              const ledX3 = rx + cabWidth - 8;
+              const ledY = by + 4;
 
-            if (cabWidth >= 30) {
-              serverRoomG.circle(rx + cabWidth - 20, by + 4, 1.5).fill(led1 ? 0x5ca97a : 0x1e3a29);
-              serverRoomG.circle(rx + cabWidth - 14, by + 4, 1.5).fill(led2 ? 0x4f9faf : 0x1d363d);
-              serverRoomG.circle(rx + cabWidth - 8, by + 4, 1.5).fill(led3 ? 0xdcab3c : 0x423416);
+              if (isServerAttacked) {
+                // ── ATTACKED: FAST SOS MORSE CODE IN RED LIGHT ─────────────────
+                if (isSosLedOn) {
+                  // High-intensity neon Red LED + glowing halo
+                  serverRoomG.circle(ledX1, ledY, 3.2).fill({ color: 0xff0000, alpha: 0.50 });
+                  serverRoomG.circle(ledX1, ledY, 1.6).fill(0xff2222);
+
+                  serverRoomG.circle(ledX2, ledY, 3.2).fill({ color: 0xff0000, alpha: 0.50 });
+                  serverRoomG.circle(ledX2, ledY, 1.6).fill(0xff2222);
+
+                  serverRoomG.circle(ledX3, ledY, 3.2).fill({ color: 0xff0000, alpha: 0.50 });
+                  serverRoomG.circle(ledX3, ledY, 1.6).fill(0xff2222);
+                } else {
+                  // Dim / unlit dark maroon LED
+                  serverRoomG.circle(ledX1, ledY, 1.4).fill(0x450a0a);
+                  serverRoomG.circle(ledX2, ledY, 1.4).fill(0x450a0a);
+                  serverRoomG.circle(ledX3, ledY, 1.4).fill(0x450a0a);
+                }
+
+                // Dark red blade activity slot
+                serverRoomG.rect(rx + 6, by + 3, Math.max(4, cabWidth - 28), 2).fill(isSosLedOn ? 0x991b1b : 0x3d0b12);
+              } else if (isServerRecovering) {
+                // Recovering matrix sweep
+                const sweepOffset = Math.sin(tSec * 6 + b) > 0;
+                serverRoomG.circle(ledX1, ledY, 1.5).fill(sweepOffset ? 0x06b6d4 : 0x083344);
+                serverRoomG.circle(ledX2, ledY, 1.5).fill(sweepOffset ? 0x38bdf8 : 0x0e3b52);
+                serverRoomG.circle(ledX3, ledY, 1.5).fill(sweepOffset ? 0x67e8f9 : 0x164e63);
+              } else {
+                // ── DEFAULT / RECOVERED: GREEN AND YELLOW LEDS ────────────────
+                const greenLed1 = Math.sin(tSec * (4 + i * 2) + b * 1.4) > -0.2;
+                const yellowLed = Math.cos(tSec * (7 + i * 3) + b * 2.1) > 0.05;
+                const greenLed2 = Math.sin(tSec * 9 + b * 3.2) > -0.15;
+
+                // LED 1: GREEN (Power & Link Status)
+                serverRoomG.circle(ledX1, ledY, 1.5).fill(greenLed1 ? 0x22c55e : 0x14532d);
+                if (greenLed1) {
+                  serverRoomG.circle(ledX1, ledY, 2.5).fill({ color: 0x22c55e, alpha: 0.25 });
+                }
+
+                // LED 2: YELLOW (Data Activity / IOPS)
+                serverRoomG.circle(ledX2, ledY, 1.5).fill(yellowLed ? 0xeab308 : 0x713f12);
+                if (yellowLed) {
+                  serverRoomG.circle(ledX2, ledY, 2.5).fill({ color: 0xeab308, alpha: 0.25 });
+                }
+
+                // LED 3: GREEN (Network Bus / Heartbeat)
+                serverRoomG.circle(ledX3, ledY, 1.5).fill(greenLed2 ? 0x4ade80 : 0x15803d);
+                if (greenLed2) {
+                  serverRoomG.circle(ledX3, ledY, 2.5).fill({ color: 0x4ade80, alpha: 0.25 });
+                }
+
+                // Normal ventilation slot
+                serverRoomG.rect(rx + 6, by + 3, Math.max(4, cabWidth - 28), 2).fill(0x1a1e24);
+              }
             }
           }
         }
@@ -316,9 +487,9 @@ export function OfficeFloor() {
         // Bottom-Right Corner Resize Grip Handle [⇲] (hidden if locked)
         if (!isServerLocked) {
           resizeHandleG.position.set(w - 12, h - 12);
-          resizeHandleG.rect(0, 0, 12, 12).fill(0x4f9faf).stroke({ color: 0xffffff, width: 1 });
-          resizeHandleG.rect(2, 2, 8, 8).fill(0x24242c);
-          resizeHandleG.rect(6, 6, 4, 4).fill(0x4f9faf);
+          resizeHandleG.rect(0, 0, 12, 12).fill(isServerAttacked ? 0xef4444 : 0x4f9faf).stroke({ color: 0xffffff, width: 1 });
+          resizeHandleG.rect(2, 2, 8, 8).fill(isServerAttacked ? 0x3d0b12 : 0x24242c);
+          resizeHandleG.rect(6, 6, 4, 4).fill(isServerAttacked ? 0xff2222 : 0x4f9faf);
         }
       };
       drawServerRoom(0);
@@ -664,29 +835,53 @@ export function OfficeFloor() {
         }
       };
 
-      const updateDeskLife = (dt: number): void => {
-        for (const [, rt] of runtimes) {
-          if (rt.screen) {
-            rt.screen.setOn(rt.character.isSittingAtDesk());
-            rt.screen.update(dt);
-          }
-        }
+      // Map seat / desk index to corresponding network device ID
+      const getNodeForSeat = (seatIdx: number | null): string | null => {
+        if (seatIdx === null) return null;
+        if (seatIdx === 0) return 'SRV-1';
+        if (seatIdx >= 1 && seatIdx <= 8) return `PC-${seatIdx}`;
+        if (seatIdx === 9) return 'L-1';
+        return `PC-${((seatIdx - 1) % 8) + 1}`;
       };
 
-      // Clock widget
-      const clockG = new Graphics();
-      clockG.eventMode = 'static';
-      clockG.cursor = 'pointer';
-      clockG.position.set(theme.anchors.calendar.x * ts0, theme.anchors.calendar.y * ts0);
-      clockG.hitArea = { contains: (x: number, y: number) => x >= 0 && x <= 16 && y >= 0 && y <= 32 };
-      clockG.zIndex = 3 * ts0;
-      clockG.on('pointertap', (ev) => {
-        ev.stopPropagation();
-        alert('Clocking out! Munder Difflin office simulation is running.');
-      });
-      charLayer.addChild(clockG);
+      // Get real-time attack simulation status and progress for a desk
+      const getDeviceStateForSeat = (seatIdx: number | null, agentStatus?: AgentStatus): { status: ScreenStatus; progress: number } => {
+        const nodeId = getNodeForSeat(seatIdx);
+        const simStates = simStatesRef.current || {};
+        const nodeState = nodeId ? simStates[nodeId] : null;
+
+        if (nodeState) {
+          if (nodeState.status === 'compromising') {
+            return { status: 'compromising', progress: nodeState.progress || 0 };
+          }
+          if (nodeState.status === 'infected') {
+            return { status: 'infected', progress: 100 };
+          }
+          if (nodeState.status === 'recovering') {
+            return { status: 'recovering', progress: nodeState.progress || 0 };
+          }
+          if (nodeState.status === 'recovered') {
+            return { status: 'recovered', progress: 100 };
+          }
+          if (nodeState.status === 'isolated') {
+            return { status: 'offline', progress: 0 };
+          }
+        }
+
+        // Fallback to agent status in store
+        if (agentStatus === 'blocked') {
+          return { status: 'infected', progress: 100 };
+        }
+        if (agentStatus === 'success') {
+          return { status: 'recovered', progress: 100 };
+        }
+        return { status: 'healthy', progress: 0 };
+      };
+
+      const deskScreens = new Map<number, DeskScreen>();
 
       const createScreenOverlay = (seatIdx: number): DeskScreen | undefined => {
+        if (deskScreens.has(seatIdx)) return deskScreens.get(seatIdx);
         const seat = seatTiles[seatIdx];
         if (!seat) return undefined;
         let topLeft: Tile | undefined;
@@ -702,7 +897,39 @@ export function OfficeFloor() {
         if (!topLeft) return undefined;
         const scr = new DeskScreen(mapRenderer, topLeft, theme.monitor);
         charLayer.addChild(scr.container);
+        deskScreens.set(seatIdx, scr);
         return scr;
+      };
+
+      // Pre-create screen overlays for all primary desk seats
+      for (let i = 0; i < seatTiles.length; i++) {
+        createScreenOverlay(i);
+      }
+
+      const updateDeskLife = (dt: number): void => {
+        const storeAgents = useStore.getState().agents;
+        for (const [seatIdx, scr] of deskScreens.entries()) {
+          const assignedEntry = Array.from(runtimes.entries()).find(([, rt]) => rt.seatIndex === seatIdx);
+          const rt = assignedEntry ? assignedEntry[1] : undefined;
+          const agent = assignedEntry ? storeAgents.find(a => a.id === assignedEntry[0]) : undefined;
+          const isSeated = rt ? rt.character.isSittingAtDesk() : false;
+
+          const devState = getDeviceStateForSeat(seatIdx, agent?.status);
+          scr.setStatus(devState.status, devState.progress);
+          scr.setOn(isSeated);
+          scr.update(dt);
+
+          if (rt && isSeated) {
+            // Trigger panic or recovery on the character sitting at this desk!
+            if (devState.status === 'compromising' || devState.status === 'infected') {
+              if (!rt.character.isPanic()) {
+                rt.character.setPanic(true);
+              }
+            } else if (rt.character.isPanic()) {
+              rt.character.setPanic(false);
+            }
+          }
+        }
       };
 
       // Desk Hover (pointerover) — opens quick info tooltip
@@ -778,10 +1005,7 @@ export function OfficeFloor() {
             releaseErrand(rt);
             releaseRun(rt);
             if (rt.seatIndex !== null) seatClaims.delete(rt.seatIndex);
-            if (rt.screen) {
-              rt.screen.container.parent?.removeChild(rt.screen.container);
-              rt.screen.destroy();
-            }
+            // Screen is retained in deskScreens for the desk itself
             rt.character.destroy();
             runtimes.delete(id);
           }
@@ -996,9 +1220,12 @@ export function OfficeFloor() {
         window.removeEventListener('keydown', handleKeyDown);
         app.ticker.remove(onTick);
         for (const [, rt] of runtimes) {
-          if (rt.screen) rt.screen.destroy();
           rt.character.destroy();
         }
+        for (const scr of deskScreens.values()) {
+          scr.destroy();
+        }
+        deskScreens.clear();
         for (const env of envelopes) env.destroy();
       };
     };
