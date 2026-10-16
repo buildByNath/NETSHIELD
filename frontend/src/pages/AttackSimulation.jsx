@@ -8,7 +8,7 @@ import 'reactflow/dist/style.css';
 
 import { 
   Play, Pause, RotateCcw, ChevronRight, ChevronLeft, 
-  Flame, HelpCircle, Layers
+  Flame, HelpCircle, Layers, Maximize2
 } from 'lucide-react';
 
 import CustomNode from '../components/network/CustomNode';
@@ -113,6 +113,9 @@ function SimulationWorkspace() {
         return;
       }
       triggerAttack(selectedVirus, startNodes);
+      if (reactFlowInstance) {
+        setTimeout(() => reactFlowInstance.fitView({ padding: 0.2, duration: 500 }), 150);
+      }
     } else if (simulationStatus === 'paused') {
       resumePlayback();
     } else {
@@ -293,7 +296,7 @@ function SimulationWorkspace() {
                             if (reactFlowInstance) {
                               const nodeObj = nodes.find(n => n.id === nodeId);
                               if (nodeObj) {
-                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.6, duration: 800 });
+                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.05, duration: 600 });
                               }
                             }
                           }}
@@ -408,6 +411,14 @@ function SimulationWorkspace() {
                 title="Reset simulation"
               >
                 <RotateCcw className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={() => { if (reactFlowInstance) reactFlowInstance.fitView({ padding: 0.2, duration: 500 }); }}
+                className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#38BDF8] transition-colors"
+                title="Fit entire network on screen"
+              >
+                <Maximize2 className="h-4 w-4" />
               </button>
             </div>
 

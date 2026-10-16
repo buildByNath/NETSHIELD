@@ -112,8 +112,8 @@ body {
 }
 
 .react-flow__edge-path {
-  stroke: #4b5563 !important;
-  stroke-width: 2.5 !important;
+  stroke: #4b5563;
+  stroke-width: 2.5;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {

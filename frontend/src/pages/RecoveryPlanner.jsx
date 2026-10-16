@@ -8,7 +8,7 @@ import 'reactflow/dist/style.css';
 
 import { 
   Play, Pause, RotateCcw, ChevronRight, ChevronLeft, ShieldCheck, 
-  Settings, Layers, Cpu, Heart, CheckSquare, ShieldAlert
+  Settings, Layers, Cpu, Heart, CheckSquare, ShieldAlert, Maximize2
 } from 'lucide-react';
 
 import CustomNode from '../components/network/CustomNode';
@@ -76,6 +76,8 @@ function RecoveryWorkspace() {
     pausePlayback,
     resumePlayback,
     resetPlayback,
+    resetRecoveryPlayback,
+    savedAttackState,
     nextStep,
     prevStep,
     infectedNodes,
@@ -91,6 +93,26 @@ function RecoveryWorkspace() {
   const [selectedAlgo, setSelectedAlgo] = useState('dijkstra');
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
 
+  // On mounting Recovery Planner, initialize the canvas with the post-attack compromised state
+  // so all affected computers appear RED (infected) and ready to be recovered, not healthy or stale blue.
+  useEffect(() => {
+    resetRecoveryPlayback();
+  }, []);
+
+  // Auto-fit canvas view on load and whenever reactFlowInstance is ready
+  useEffect(() => {
+    if (reactFlowInstance) {
+      setTimeout(() => reactFlowInstance.fitView({ padding: 0.25, duration: 500 }), 150);
+    }
+  }, [reactFlowInstance]);
+
+  // When bottom pseudocode panel mounts or unmounts, smoothly re-fit the viewport
+  useEffect(() => {
+    if (reactFlowInstance && timeline.length === 1) {
+      setTimeout(() => reactFlowInstance.fitView({ padding: 0.25, duration: 400 }), 100);
+    }
+  }, [timeline.length, reactFlowInstance]);
+
   // Helper: run recovery planner from recovery source to a specific target device
   const recoverDevice = (targetNodeId) => {
     setRecoveryTarget(targetNodeId);
@@ -100,7 +122,20 @@ function RecoveryWorkspace() {
       budget: parseFloat(budget)
     };
     triggerRecovery(selectedAlgo, options);
+    if (reactFlowInstance) {
+      setTimeout(() => reactFlowInstance.fitView({ padding: 0.25, duration: 500 }), 200);
+    }
   };
+
+  // Collect all affected devices: from infectedNodes, savedAttackState, or active nodeSimStates
+  const allAffectedIds = Array.from(new Set([
+    ...infectedNodes,
+    ...(savedAttackState?.infectedNodeIds || []),
+    ...Object.keys(nodeSimStates).filter(id => {
+      const s = nodeSimStates[id]?.status;
+      return s === 'infected' || s === 'compromising' || s === 'recovering' || s === 'recovered';
+    })
+  ])).filter(id => id !== recoverySource);
 
   // Auto-fill defaults: ensure source is a healthy server and target is an infected PC/Laptop
   useEffect(() => {
@@ -152,6 +187,9 @@ function RecoveryWorkspace() {
         budget: parseFloat(budget)
       };
       triggerRecovery(selectedAlgo, options);
+      if (reactFlowInstance) {
+        setTimeout(() => reactFlowInstance.fitView({ padding: 0.25, duration: 500 }), 200);
+      }
     } else if (simulationStatus === 'paused') {
       resumePlayback();
     } else {
@@ -160,8 +198,8 @@ function RecoveryWorkspace() {
   };
 
   const handleReset = () => {
-    resetPlayback();
-    if (reactFlowInstance) reactFlowInstance.fitView({ duration: 500 });
+    resetRecoveryPlayback();
+    if (reactFlowInstance) reactFlowInstance.fitView({ padding: 0.25, duration: 500 });
   };
 
   const activeFrameData = (mode === 'recovery' && timeline[currentFrame]) || { 
@@ -195,9 +233,12 @@ function RecoveryWorkspace() {
               value={selectedAlgo}
               onChange={(e) => {
                 setSelectedAlgo(e.target.value);
-                handleReset();
+                resetRecoveryPlayback();
+                if (reactFlowInstance) {
+                  setTimeout(() => reactFlowInstance.fitView({ padding: 0.25, duration: 500 }), 150);
+                }
               }}
-              disabled={mode === 'recovery' && simulationStatus !== 'idle'}
+              disabled={isPlaying}
               className="w-full bg-[#0F1720] border border-[#4B5563]/30 hover:border-[#FD802E]/30 text-[#F8FAFC] px-2 py-2 rounded-lg outline-none cursor-pointer transition-colors"
             >
               <option value="dijkstra">Dijkstra Shortest Path</option>
@@ -216,20 +257,39 @@ function RecoveryWorkspace() {
           {/* Auto-detected infected nodes count badge panel */}
           <div className="bg-[#0F1720]/60 border border-[#4B5563]/20 rounded-lg p-3 space-y-1.5">
             <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
-              <span>Infected Nodes Detected</span>
-              <span className={`px-2 py-0.5 rounded-full ${infectedNodes.length > 0 ? 'bg-[#EF4444]/20 text-[#EF4444]' : 'bg-[#22C55E]/20 text-[#22C55E]'}`}>
-                {infectedNodes.length} devices
+              <span className="flex items-center gap-1 truncate">
+                <span>Infected Nodes</span>
+                {savedAttackState?.virusType && (
+                  <span className="text-[8px] text-[#FD802E] font-mono px-1 rounded bg-[#FD802E]/10">
+                    {savedAttackState.virusType.toUpperCase()}
+                  </span>
+                )}
               </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={`px-2 py-0.5 rounded-full ${infectedNodes.length > 0 ? 'bg-[#EF4444]/20 text-[#EF4444]' : 'bg-[#22C55E]/20 text-[#22C55E]'}`}>
+                  {infectedNodes.length} devices
+                </span>
+                <button
+                  onClick={() => {
+                    resetRecoveryPlayback();
+                    if (triggerNotification) triggerNotification('Restored all affected computers to compromised state.');
+                  }}
+                  title="Restore affected computers to post-attack state"
+                  className="px-1.5 py-0.5 bg-[#EF4444]/20 hover:bg-[#EF4444]/35 text-[#EF4444] rounded text-[8px] font-mono font-bold transition-colors uppercase"
+                >
+                  Re-arm
+                </button>
+              </div>
             </div>
             {infectedNodes.length > 0 ? (
               <div className="max-h-16 overflow-y-auto flex flex-wrap gap-1 pt-1">
-                {infectedNodes.slice(0, 8).map(id => (
+                {infectedNodes.slice(0, 10).map(id => (
                   <span key={id} className="bg-[#EF4444]/10 border border-[#EF4444]/25 text-[#EF4444] px-1 rounded text-[8px] font-mono">
                     {id}
                   </span>
                 ))}
-                {infectedNodes.length > 8 && (
-                  <span className="text-[8px] text-[#94A3B8] italic pt-0.5">+{infectedNodes.length - 8} more</span>
+                {infectedNodes.length > 10 && (
+                  <span className="text-[8px] text-[#94A3B8] italic pt-0.5">+{infectedNodes.length - 10} more</span>
                 )}
               </div>
             ) : (
@@ -270,8 +330,13 @@ function RecoveryWorkspace() {
               )}
               <select
                 value={recoverySource}
-                onChange={(e) => setRecoverySource(e.target.value)}
-                disabled={mode === 'recovery' && simulationStatus !== 'idle' && simulationStatus !== 'completed'}
+                onChange={(e) => {
+                  setRecoverySource(e.target.value);
+                  if (simulationStatus === 'completed') {
+                    resetRecoveryPlayback();
+                  }
+                }}
+                disabled={isPlaying}
                 className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
               >
                 {originalNodes
@@ -311,8 +376,13 @@ function RecoveryWorkspace() {
 
               <select
                 value={recoveryTarget}
-                onChange={(e) => setRecoveryTarget(e.target.value)}
-                disabled={mode === 'recovery' && simulationStatus !== 'idle' && simulationStatus !== 'completed'}
+                onChange={(e) => {
+                  setRecoveryTarget(e.target.value);
+                  if (simulationStatus === 'completed') {
+                    resetRecoveryPlayback();
+                  }
+                }}
+                disabled={isPlaying}
                 className="w-full bg-[#0F1720] border border-[#4B5563]/35 text-[#F8FAFC] px-2 py-1.5 rounded outline-none text-[11px] font-mono cursor-pointer"
               >
                 <optgroup label="Computers & Endpoints">
@@ -562,34 +632,59 @@ function RecoveryWorkspace() {
               </div>
             </div>
 
-            {/* Infected Devices List */}
+            {/* Affected Computers List — Tracks all compromised machines and their healing progress */}
             <div className="flex-1 flex flex-col overflow-hidden space-y-1.5 border-t border-[#4B5563]/20 pt-3 min-h-[120px]">
-              <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">Infected Devices ({Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length})</label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">
+                  Affected Computers ({allAffectedIds.length})
+                </label>
+                {allAffectedIds.length > 0 && (
+                  <span className="text-[8px] text-[#22C55E] font-mono">
+                    {allAffectedIds.filter(id => nodeSimStates[id]?.status === 'recovered').length}/{allAffectedIds.length} Patched
+                  </span>
+                )}
+              </div>
               <div className="flex-1 bg-[#0F1720]/40 border border-[#4B5563]/25 rounded-lg p-2 overflow-y-auto space-y-1.5 scrollbar-thin">
-                {Object.keys(nodeSimStates).filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising').length > 0 ? (
-                  Object.keys(nodeSimStates)
-                    .filter(id => nodeSimStates[id]?.status === 'infected' || nodeSimStates[id]?.status === 'compromising')
-                    .map(nodeId => {
-                      const nodeState = nodeSimStates[nodeId] || {};
-                      const isNodeIsolated = nodeState.isIsolated;
-                      return (
-                        <div 
-                          key={nodeId}
-                          onClick={() => {
-                            if (reactFlowInstance) {
-                              const nodeObj = nodes.find(n => n.id === nodeId);
-                              if (nodeObj) {
-                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.6, duration: 800 });
-                              }
+                {allAffectedIds.length > 0 ? (
+                  allAffectedIds.map(nodeId => {
+                    const nodeState = nodeSimStates[nodeId] || {};
+                    const isNodeIsolated = nodeState.isIsolated;
+                    const isRec = nodeState.status === 'recovered';
+                    const isRecovering = nodeState.status === 'recovering';
+                    const statusText = isNodeIsolated 
+                      ? '🛡️ ISOLATED' 
+                      : isRec 
+                        ? '✅ RECOVERED' 
+                        : isRecovering 
+                          ? '🔵 RECOVERING...' 
+                          : '🔴 INFECTED';
+                    const borderClass = isRec 
+                      ? 'border-[#22C55E]/40 hover:border-[#22C55E]' 
+                      : isRecovering 
+                        ? 'border-[#3B82F6]/50' 
+                        : 'border-[#EF4444]/30 hover:border-[#FD802E]';
+
+                    return (
+                      <div 
+                        key={nodeId}
+                        onClick={() => {
+                          if (reactFlowInstance) {
+                            const nodeObj = nodes.find(n => n.id === nodeId);
+                            if (nodeObj) {
+                              reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y - 60, { zoom: 0.95, duration: 500 });
                             }
-                          }}
-                          className="flex items-center justify-between bg-[#1B2838] border border-[#EF4444]/30 hover:border-[#FD802E] p-1.5 rounded cursor-pointer transition-all"
-                        >
-                          <div className="font-mono text-[9px] min-w-0 flex-1 pr-1.5">
-                            <span className="text-[#F8FAFC] font-bold block truncate">{nodeId}</span>
-                            <span className="text-[8px] text-[#EF4444] block truncate">{isNodeIsolated ? '🛡️ ISOLATED' : '🔴 INFECTED'}</span>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
+                          }
+                        }}
+                        className={`flex items-center justify-between bg-[#1B2838] border ${borderClass} p-1.5 rounded cursor-pointer transition-all`}
+                      >
+                        <div className="font-mono text-[9px] min-w-0 flex-1 pr-1.5">
+                          <span className="text-[#F8FAFC] font-bold block truncate">{nodeId}</span>
+                          <span className={`text-[8px] block truncate font-bold ${isRec ? 'text-[#22C55E]' : isRecovering ? 'text-[#60A5FA]' : 'text-[#EF4444]'}`}>
+                            {statusText}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          {!isRec && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -600,25 +695,26 @@ function RecoveryWorkspace() {
                             >
                               Recover
                             </button>
-                            {!isNodeIsolated ? (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleNodeIsolate(nodeId); }}
-                                className="px-1.5 py-0.5 bg-[#EF4444] hover:bg-[#F87171] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
-                              >
-                                Isolate
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleNodeRestore(nodeId); }}
-                                className="px-1.5 py-0.5 bg-[#22C55E] hover:bg-[#4ADE80] text-[#0F1720] text-[8px] font-bold rounded uppercase"
-                              >
-                                Link
-                              </button>
-                            )}
-                          </div>
+                          )}
+                          {!isNodeIsolated ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleNodeIsolate(nodeId); }}
+                              className="px-1.5 py-0.5 bg-[#EF4444] hover:bg-[#F87171] text-[#F8FAFC] text-[8px] font-bold rounded uppercase"
+                            >
+                              Isolate
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleNodeRestore(nodeId); }}
+                              className="px-1.5 py-0.5 bg-[#22C55E] hover:bg-[#4ADE80] text-[#0F1720] text-[8px] font-bold rounded uppercase"
+                            >
+                              Link
+                            </button>
+                          )}
                         </div>
-                      );
-                    })
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-[#94A3B8] italic text-center my-auto text-[9px] py-4">No active threat payloads</div>
                 )}
@@ -703,6 +799,14 @@ function RecoveryWorkspace() {
                 title="Reset recovery"
               >
                 <RotateCcw className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={() => reactFlowInstance && reactFlowInstance.fitView({ padding: 0.25, duration: 500 })}
+                className="p-1.5 rounded bg-[#1B2838] border border-[#4B5563]/25 text-[#CBD5E1] hover:text-[#3B82F6] transition-colors"
+                title="Fit all devices in view"
+              >
+                <Maximize2 className="h-4 w-4" />
               </button>
             </div>
 

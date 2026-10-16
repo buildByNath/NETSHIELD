@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { projectService, algorithmService, templateService } from '../services/api';
 
 // ── Office network template v2 — 1 Server · 2 Routers · 2 Switches · 8 named desks ──
@@ -99,6 +99,8 @@ export function SimulationProvider({ children }) {
   
   // Simulation/Recovery States
   const [mode, setMode] = useState('idle'); // 'idle' | 'simulation' | 'recovery'
+  const modeRef = useRef(mode);
+  const isPlayingRef = useRef(false);
   const [algoId, setAlgoId] = useState('');
   const [selectedVirus, setSelectedVirus] = useState('bfs');
   const [startNodes, setStartNodes] = useState([]);
@@ -116,6 +118,16 @@ export function SimulationProvider({ children }) {
   };
   const [budget, setBudget] = useState(100);
   const [infectedNodes, setInfectedNodes] = useState([]);
+
+  // Persistent saved attack state with full details of affected computers
+  const [savedAttackState, setSavedAttackState] = useState(() => {
+    try {
+      const cached = localStorage.getItem('netshield_saved_attack_state');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Configurable Sim settings
   const [compromiseTime, setCompromiseTime] = useState(2500); // default 2.5s (smooth compromise visualization)
@@ -164,6 +176,15 @@ export function SimulationProvider({ children }) {
     speedRef.current = speed;
   }, [speed]);
 
+  // Keep modeRef and isPlayingRef in sync
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
   // Keep nodeSimStatesRef in sync so setTimeout/setInterval callbacks always read current state
   useEffect(() => {
     nodeSimStatesRef.current = nodeSimStates;
@@ -184,9 +205,57 @@ export function SimulationProvider({ children }) {
     }
   }, [nodeSimStates, originalNodes]);
 
+  // Helper to persist attack state and details of affected computers
+  const persistAttackSnapshot = useCallback((freshStates, traversed, vType, starts) => {
+    const statesToUse = freshStates || nodeSimStatesRef.current;
+    const activeInfected = originalNodes
+      .filter(n => statesToUse[n.id]?.status === 'infected' || statesToUse[n.id]?.status === 'compromising')
+      .map(n => n.id);
+
+    if (activeInfected.length > 0) {
+      const affectedDetails = activeInfected.map(id => {
+        const nodeObj = originalNodes.find(n => n.id === id);
+        const state = statesToUse[id] || {};
+        return {
+          id,
+          label: nodeObj?.data?.label || nodeObj?.label || id,
+          type: nodeObj?.type || 'PC',
+          status: state.status || 'infected',
+          progress: state.progress || 100,
+          isIsolated: !!state.isIsolated
+        };
+      });
+
+      const snapshot = {
+        virusType: vType || selectedVirus || algoId || 'attack',
+        startNodes: starts || (startNodes.length > 0 ? [...startNodes] : [activeInfected[0]]),
+        infectedNodeIds: activeInfected,
+        affectedDetails,
+        nodeSimStates: { ...statesToUse },
+        traversedEdges: Array.from(traversed || traversedEdges),
+        timestamp: Date.now()
+      };
+
+      setSavedAttackState(snapshot);
+      try {
+        localStorage.setItem('netshield_saved_attack_state', JSON.stringify(snapshot));
+      } catch (e) {
+        console.warn('Failed to save attack state to localStorage', e);
+      }
+    }
+  }, [originalNodes, selectedVirus, algoId, startNodes, traversedEdges]);
+
+  // Continuously persist attack details while an attack simulation is active
+  useEffect(() => {
+    if (mode === 'simulation') {
+      persistAttackSnapshot();
+    }
+  }, [nodeSimStates, mode, persistAttackSnapshot]);
+
   // Load baseline active graph
   const loadGraph = async () => {
-    if (mode === 'simulation' || mode === 'recovery' || isPlaying) {
+    // Use refs to avoid stale closure — mode/isPlaying may be outdated in the closure
+    if (modeRef.current === 'simulation' || modeRef.current === 'recovery' || isPlayingRef.current) {
       return;
     }
     setSimulationStatus('loading');
@@ -546,6 +615,7 @@ export function SimulationProvider({ children }) {
             );
             setSimulationStatus('completed');
             setIsPlaying(false);
+            persistAttackSnapshot();
           }, Math.round(700 / (speedRef.current || 1)));
         }
       }
@@ -609,7 +679,10 @@ export function SimulationProvider({ children }) {
               null,
               null
             );
-          }, 0);
+            setSimulationStatus('completed');
+            setIsPlaying(false);
+            persistAttackSnapshot();
+          }, Math.round(500 / (speedRef.current || 1)));
         }
       }
     }
@@ -659,7 +732,12 @@ export function SimulationProvider({ children }) {
           freshStates[n.id]?.status === 'infected' || freshStates[n.id]?.status === 'compromising'
         );
 
-        if ((dest && targetState?.status === 'recovered') || remainingInfected.length === 0) {
+        const isPathAlgo = ['dijkstra', 'floyd', 'tsp'].includes(currentAlgo);
+        const shouldComplete = isPathAlgo 
+          ? ((dest && targetState?.status === 'recovered') || remainingInfected.length === 0)
+          : (remainingInfected.length === 0);
+
+        if (shouldComplete) {
           setSimulationStatus('completed');
           setIsPlaying(false);
           logTimelineEvent(
@@ -767,19 +845,24 @@ export function SimulationProvider({ children }) {
     const neighbors = activeEdgesList.map(e => e.source === nodeId ? e.target : e.source);
 
     let launched = false;
+    const activeTargets = new Set(activePulses.map(p => p.target));
+    const pulsesToAdd = [];
     for (const nbr of neighbors) {
       const nbrState = currentStates[nbr] || { status: 'healthy' };
-      if (nbrState.status !== 'recovering' && nbrState.status !== 'recovered' && !nbrState.isIsolated) {
-        launched = true;
-        const pulseId = `rec-${nodeId}-${nbr}-${Date.now()}`;
-        setActivePulses(prev => [...prev, {
-          id: pulseId,
+      if (nbrState.status !== 'recovering' && nbrState.status !== 'recovered' && !nbrState.isIsolated && !activeTargets.has(nbr)) {
+        activeTargets.add(nbr);
+        pulsesToAdd.push({
+          id: `rec-${nodeId}-${nbr}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           type: 'recovery',
           source: nodeId,
           target: nbr,
           progress: 0
-        }]);
+        });
       }
+    }
+    if (pulsesToAdd.length > 0) {
+      launched = true;
+      setActivePulses(prev => [...prev, ...pulsesToAdd]);
     }
 
     // If no direct neighbor needs recovery, find path towards destination computer
@@ -804,8 +887,9 @@ export function SimulationProvider({ children }) {
     }
   };
 
-  // Node Context Quick actions handlers
-  const handleNodeIsolate = (nodeId) => {
+  // Node Context Quick actions handlers — stabilized with useCallback to prevent
+  // React Flow from unmounting/remounting DOM elements (which causes black screen flickers).
+  const handleNodeIsolate = useCallback((nodeId) => {
     setNodeSimStates(prev => {
       const next = { ...prev };
       next[nodeId] = {
@@ -832,9 +916,9 @@ export function SimulationProvider({ children }) {
         null
       );
     }, 0);
-  };
+  }, [originalEdges]);
 
-  const handleNodeRecover = (nodeId) => {
+  const handleNodeRecover = useCallback((nodeId) => {
     setNodeSimStates(prev => {
       const next = { ...prev };
       const current = next[nodeId] || { status: 'healthy', progress: 0 };
@@ -870,13 +954,13 @@ export function SimulationProvider({ children }) {
     });
 
     // Make sure simulation playback is active so the recovery progress bar advances
-    if (!isPlaying) {
+    if (!isPlayingRef.current) {
       setIsPlaying(true);
       setSimulationStatus('running');
     }
-  };
+  }, []);
 
-  const handleNodeRestore = (nodeId) => {
+  const handleNodeRestore = useCallback((nodeId) => {
     setNodeSimStates(prev => {
       const next = { ...prev };
       if (next[nodeId]) {
@@ -899,7 +983,7 @@ export function SimulationProvider({ children }) {
         null
       );
     }, 0);
-  };
+  }, []);
 
   // Central simulation tick loop
   useEffect(() => {
@@ -928,6 +1012,7 @@ export function SimulationProvider({ children }) {
               if (node.progress >= 100) {
                 node.status = 'infected';
                 node.progress = 100;
+                nodeSimStatesRef.current[id] = { ...node };
                 
                 const curQueue = [...simQueueRef.current];
                 const curStack = [...simStackRef.current];
@@ -1112,17 +1197,21 @@ export function SimulationProvider({ children }) {
   // IMPORTANT: Uses functional updates + per-element diffing to avoid creating
   // unnecessary new object references which would cause React Flow to unmount/remount
   // DOM elements (leading to black screen flickers and disappearing nodes).
+  //
+  // FIX: Uses O(1) Map lookups instead of O(n²) Array.find(), and stabilized callback
+  // references (useCallback) so React Flow never sees changed function identity on nodes.
   useEffect(() => {
     if (originalNodes.length === 0) return;
 
     if (mode === 'idle') {
       // ── Idle mode: lightweight pass ──
       setNodes(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        let anyChanged = false;
         const next = originalNodes.map(n => {
           const newStatus = startNodes.includes(n.id) ? 'protected' : 'healthy';
           const isRecSrc = n.id === recoverySource;
-          // Find existing node to diff against
-          const existing = prev.find(p => p.id === n.id);
+          const existing = prevMap.get(n.id);
           if (
             existing &&
             existing.data.status === newStatus &&
@@ -1134,6 +1223,7 @@ export function SimulationProvider({ children }) {
           ) {
             return existing; // keep same reference — no re-render for this node
           }
+          anyChanged = true;
           return {
             ...n,
             data: {
@@ -1147,14 +1237,15 @@ export function SimulationProvider({ children }) {
             }
           };
         });
-        // If every element is the same reference, return prev to skip React Flow reconciliation
-        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        if (!anyChanged && next.length === prev.length) return prev;
         return next;
       });
 
       setEdges(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        let anyChanged = false;
         const next = originalEdges.map(e => {
-          const existing = prev.find(p => p.id === e.id);
+          const existing = prevMap.get(e.id);
           if (
             existing &&
             existing.data.isSimulation === false &&
@@ -1165,6 +1256,7 @@ export function SimulationProvider({ children }) {
           ) {
             return existing;
           }
+          anyChanged = true;
           return {
             ...e,
             hidden: false,
@@ -1177,7 +1269,7 @@ export function SimulationProvider({ children }) {
             }
           };
         });
-        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        if (!anyChanged && next.length === prev.length) return prev;
         return next;
       });
       return;
@@ -1201,11 +1293,13 @@ export function SimulationProvider({ children }) {
       }
 
       setNodes(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        let anyChanged = false;
         const next = originalNodes.map(n => {
           const snapState = snapshot[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
           const isRecSrc = mode === 'recovery' && n.id === recoverySource;
           const isRecTarget = mode === 'recovery' && n.id === recoveryTarget;
-          const existing = prev.find(p => p.id === n.id);
+          const existing = prevMap.get(n.id);
           if (
             existing &&
             existing.data.status === snapState.status &&
@@ -1218,6 +1312,7 @@ export function SimulationProvider({ children }) {
           ) {
             return existing;
           }
+          anyChanged = true;
           return {
             ...n,
             data: {
@@ -1235,7 +1330,7 @@ export function SimulationProvider({ children }) {
             }
           };
         });
-        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        if (!anyChanged && next.length === prev.length) return prev;
         return next;
       });
 
@@ -1245,6 +1340,8 @@ export function SimulationProvider({ children }) {
       );
 
       setEdges(prev => {
+        const prevMap = new Map(prev.map(p => [p.id, p]));
+        let anyChanged = false;
         const next = originalEdges.map(e => {
           const shouldHide = isolatedNodeIds.has(e.source) || isolatedNodeIds.has(e.target);
           const activeEdge = frame.currentEdge;
@@ -1259,7 +1356,7 @@ export function SimulationProvider({ children }) {
           const newIsSim = mode === 'simulation' && !!isActive;
           const newIsRec = mode === 'recovery' && !!isActive;
 
-          const existing = prev.find(p => p.id === e.id);
+          const existing = prevMap.get(e.id);
           if (
             existing &&
             existing.hidden === shouldHide &&
@@ -1270,6 +1367,7 @@ export function SimulationProvider({ children }) {
           ) {
             return existing;
           }
+          anyChanged = true;
           return {
             ...e,
             hidden: shouldHide,
@@ -1282,7 +1380,7 @@ export function SimulationProvider({ children }) {
             }
           };
         });
-        if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+        if (!anyChanged && next.length === prev.length) return prev;
         return next;
       });
       return;
@@ -1290,11 +1388,13 @@ export function SimulationProvider({ children }) {
 
     // ── Live execution rendering ──
     setNodes(prev => {
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      let anyChanged = false;
       const next = originalNodes.map(n => {
         const state = nodeSimStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
         const isRecSrc = mode === 'recovery' && n.id === recoverySource;
         const isRecTarget = mode === 'recovery' && n.id === recoveryTarget;
-        const existing = prev.find(p => p.id === n.id);
+        const existing = prevMap.get(n.id);
         if (
           existing &&
           existing.data.status === state.status &&
@@ -1307,6 +1407,7 @@ export function SimulationProvider({ children }) {
         ) {
           return existing; // no change — keep same ref
         }
+        anyChanged = true;
         return {
           ...n,
           data: {
@@ -1324,7 +1425,7 @@ export function SimulationProvider({ children }) {
           }
         };
       });
-      if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+      if (!anyChanged && next.length === prev.length) return prev;
       return next;
     });
 
@@ -1336,6 +1437,8 @@ export function SimulationProvider({ children }) {
           .map(n => n.id)
       );
 
+      const prevMap = new Map(prev.map(p => [p.id, p]));
+      let anyChanged = false;
       const next = originalEdges.map(e => {
         const shouldHide = isolatedNodeIds.has(e.source) || isolatedNodeIds.has(e.target);
         const pulse = activePulses.find(p =>
@@ -1353,7 +1456,7 @@ export function SimulationProvider({ children }) {
         const newPulseSource = pulse?.source ?? '';
         const newPulseTarget = pulse?.target ?? '';
 
-        const existing = prev.find(p => p.id === e.id);
+        const existing = prevMap.get(e.id);
         if (
           existing &&
           existing.hidden === shouldHide &&
@@ -1367,6 +1470,7 @@ export function SimulationProvider({ children }) {
         ) {
           return existing;
         }
+        anyChanged = true;
         return {
           ...e,
           hidden: shouldHide,
@@ -1382,10 +1486,10 @@ export function SimulationProvider({ children }) {
           }
         };
       });
-      if (next.length === prev.length && next.every((n, i) => n === prev[i])) return prev;
+      if (!anyChanged && next.length === prev.length) return prev;
       return next;
     });
-  }, [nodeSimStates, activePulses, originalNodes, originalEdges, mode, startNodes, speed, currentFrame, timeline, simulationStatus]);
+  }, [nodeSimStates, activePulses, originalNodes, originalEdges, mode, startNodes, speed, currentFrame, timeline, simulationStatus, traversedEdges, recoverySource, recoveryTarget, handleNodeIsolate, handleNodeRecover, handleNodeRestore]);
 
   const [saveStatus, setSaveStatus] = useState(''); // '' | 'saving' | 'saved' | 'error'
 
@@ -1542,13 +1646,17 @@ export function SimulationProvider({ children }) {
       .filter(n => nodeSimStates[n.id]?.status === 'infected' || nodeSimStates[n.id]?.status === 'compromising')
       .map(n => n.id);
 
-    // If no nodes are currently infected (fresh start), default to client endpoints (PCs, Laptops)
+    // If no nodes are currently infected in state, fall back to savedAttackState from Attack Simulator
     if (currentInfected.length === 0) {
-      originalNodes.forEach(n => {
-        if (['PC', 'Laptop'].includes(n.type)) {
-          currentInfected.push(n.id);
-        }
-      });
+      if (savedAttackState?.infectedNodeIds?.length > 0) {
+        currentInfected = [...savedAttackState.infectedNodeIds];
+      } else {
+        originalNodes.forEach(n => {
+          if (['PC', 'Laptop'].includes(n.type)) {
+            currentInfected.push(n.id);
+          }
+        });
+      }
     }
 
     // 2. Validate source node (must be a healthy server)
@@ -1703,6 +1811,139 @@ export function SimulationProvider({ children }) {
     })));
   };
 
+  // Recovery Planner Reset: restores network to the POST-ATTACK state.
+  // Preserves affected computers in their RED (infected) compromised state so
+  // switching algorithms or clicking reset doesn't wipe them to normal/healthy or leave them blue.
+  const resetRecoveryPlayback = useCallback(() => {
+    if (playbackInterval.current) clearInterval(playbackInterval.current);
+    setIsPlaying(false);
+    setCurrentFrame(0);
+    setTimeline([]);
+    setSimulationStatus('idle');
+    setMode('recovery');
+    setElapsedSeconds(0);
+    setSavedCount(0);
+    setActivePulses([]);
+
+    // Determine target infected computers from saved attack state or active state
+    let saved = savedAttackState;
+    if (!saved || !saved.infectedNodeIds || saved.infectedNodeIds.length === 0) {
+      try {
+        const cached = localStorage.getItem('netshield_saved_attack_state');
+        if (cached) saved = JSON.parse(cached);
+      } catch (e) {
+        console.warn('Failed to read cached attack state', e);
+      }
+    }
+
+    let targetInfectedIds = [];
+    const restoredStates = {};
+
+    if (saved && saved.infectedNodeIds && saved.infectedNodeIds.length > 0) {
+      targetInfectedIds = [...saved.infectedNodeIds];
+      originalNodes.forEach(n => {
+        if (targetInfectedIds.includes(n.id)) {
+          const prior = saved.nodeSimStates?.[n.id] || {};
+          restoredStates[n.id] = {
+            status: 'infected',
+            progress: 100,
+            isIsolated: !!prior.isIsolated
+          };
+        } else {
+          restoredStates[n.id] = {
+            status: 'healthy',
+            progress: 0,
+            isIsolated: false
+          };
+        }
+      });
+      if (saved.traversedEdges && Array.isArray(saved.traversedEdges)) {
+        setTraversedEdges(new Set(saved.traversedEdges));
+      }
+    } else {
+      originalNodes.forEach(n => {
+        const cur = nodeSimStatesRef.current[n.id];
+        if (cur && (cur.status === 'infected' || cur.status === 'recovering' || cur.status === 'recovered' || cur.status === 'compromising')) {
+          targetInfectedIds.push(n.id);
+          restoredStates[n.id] = { status: 'infected', progress: 100, isIsolated: !!cur.isIsolated };
+        } else {
+          restoredStates[n.id] = { status: 'healthy', progress: 0, isIsolated: false };
+        }
+      });
+      if (targetInfectedIds.length === 0) {
+        originalNodes.forEach(n => {
+          if (['PC', 'Laptop'].includes(n.type)) {
+            targetInfectedIds.push(n.id);
+            restoredStates[n.id] = { status: 'infected', progress: 100, isIsolated: false };
+          }
+        });
+      }
+    }
+
+    // Ensure recoverySource is a healthy server and NOT in targetInfectedIds
+    const SERVER_TYPES = ['Application Server', 'Database Server', 'Backup Server'];
+    let effectiveSrc = recoverySource;
+    if (!effectiveSrc || targetInfectedIds.includes(effectiveSrc) || !originalNodes.some(n => n.id === effectiveSrc && SERVER_TYPES.includes(n.type))) {
+      const srv = originalNodes.find(n => SERVER_TYPES.includes(n.type) && !targetInfectedIds.includes(n.id))
+               || originalNodes.find(n => SERVER_TYPES.includes(n.type));
+      if (srv) effectiveSrc = srv.id;
+    }
+
+    if (effectiveSrc) {
+      restoredStates[effectiveSrc] = { status: 'healthy', progress: 0, isIsolated: false };
+      targetInfectedIds = targetInfectedIds.filter(id => id !== effectiveSrc);
+      setRecoverySource(effectiveSrc);
+    }
+
+    // Ensure recoveryTarget is selected
+    let effectiveTarget = recoveryTarget;
+    if (!effectiveTarget || !targetInfectedIds.includes(effectiveTarget)) {
+      const pc = targetInfectedIds.find(id => id.startsWith('PC-') || id.startsWith('L-')) || targetInfectedIds[0];
+      if (pc) {
+        effectiveTarget = pc;
+        setRecoveryTarget(pc);
+      }
+    }
+
+    setInfectedNodes(targetInfectedIds);
+    setNodeSimStates(restoredStates);
+    nodeSimStatesRef.current = restoredStates;
+
+    // Immediately update canvas nodes with post-attack infected state
+    setNodes(originalNodes.map(n => {
+      const s = restoredStates[n.id] || { status: 'healthy', progress: 0, isIsolated: false };
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          status: s.status,
+          isIsolated: s.isIsolated,
+          progress: s.progress,
+          mode: 'recovery',
+          simActive: true,
+          isRecoverySource: n.id === effectiveSrc,
+          isRecoveryTarget: n.id === effectiveTarget,
+          onIsolate: handleNodeIsolate,
+          onRecover: handleNodeRecover,
+          onRestore: handleNodeRestore
+        }
+      };
+    }));
+
+    // Reset edges (hide active pulses, retain attack trail)
+    setEdges(originalEdges.map(e => ({
+      ...e,
+      hidden: false,
+      data: {
+        ...e.data,
+        isSimulation: false,
+        isRecovery: false,
+        isTraversed: saved?.traversedEdges?.includes(`${e.source}->${e.target}`) || false,
+        speed: speedRef.current
+      }
+    })));
+  }, [originalNodes, originalEdges, savedAttackState, recoverySource, recoveryTarget, handleNodeIsolate, handleNodeRecover, handleNodeRestore]);
+
   const nextStep = () => {
     if (timeline.length === 0) return;
     setIsPlaying(false);
@@ -1807,6 +2048,9 @@ export function SimulationProvider({ children }) {
     pausePlayback,
     resumePlayback,
     resetPlayback,
+    resetRecoveryPlayback,
+    savedAttackState,
+    persistAttackSnapshot,
     nextStep,
     prevStep,
     syncGraph: loadGraph,

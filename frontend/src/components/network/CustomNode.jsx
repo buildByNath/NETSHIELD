@@ -60,16 +60,17 @@ export default function CustomNode({ id, data, selected }) {
   // simActive: simulation is running — keep all nodes fully visible, not dimmed
   const simActive = data.simActive ?? false;
 
-  // Inline styles — immune to Tailwind JIT purging in Docker builds
+  // Inline styles — high-contrast cyber NOC palette, immune to dark background fade
   const getStatusStyles = () => {
     if (isIsolated) {
       return {
         bg: '#DFE3E6',
         border: '2px solid #3B82F6',
-        boxShadow: '0 0 12px rgba(59,130,246,0.6)',
-        iconColor: '#3B82F6',
+        boxShadow: '0 0 14px rgba(59,130,246,0.6)',
+        iconBg: '#CBD5E1',
+        iconColor: '#1E40AF',
         labelColor: '#0F1720',
-        subColor: '#4A5568',
+        subColor: '#334155',
         pulse: false
       };
     }
@@ -77,77 +78,72 @@ export default function CustomNode({ id, data, selected }) {
     switch (status) {
       case 'infected':
         return {
-          bg: isServer ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.15)',
-          border: isServer ? '2px solid #EF4444' : '1px solid #EF4444',
-          boxShadow: isServer ? '0 0 20px rgba(239,68,68,0.8)' : '0 0 14px rgba(239,68,68,0.5)',
-          iconColor: '#EF4444',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
-          pulse: true
+          bg: isServer ? '#3B1219' : '#2D1418',
+          border: isServer ? '2px solid #EF4444' : '1.5px solid #EF4444',
+          boxShadow: isServer ? '0 0 20px rgba(239,68,68,0.7)' : '0 0 14px rgba(239,68,68,0.45)',
+          iconBg: '#45151C',
+          iconColor: '#F87171',
+          labelColor: '#FFFFFF',
+          subColor: '#FCA5A5',
+          pulse: false
         };
       case 'compromising':
       case 'reached':
         return {
-          bg: isServer ? 'rgba(239,68,68,0.20)' : 'rgba(253,128,46,0.10)',
-          border: isServer ? '2px solid #EF4444' : '1px solid #FD802E',
-          boxShadow: isServer ? '0 0 18px rgba(239,68,68,0.7)' : '0 0 12px rgba(253,128,46,0.5)',
-          iconColor: isServer ? '#EF4444' : '#FD802E',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
-          pulse: true
+          bg: isServer ? '#3B1E12' : '#2D1B12',
+          border: isServer ? '2px solid #FD802E' : '1.5px solid #FD802E',
+          boxShadow: isServer ? '0 0 20px rgba(253,128,46,0.7)' : '0 0 14px rgba(253,128,46,0.45)',
+          iconBg: '#442113',
+          iconColor: '#FB923C',
+          labelColor: '#FFFFFF',
+          subColor: '#FDBA74',
+          pulse: false
         };
       case 'recovering':
         return {
-          bg: 'rgba(59,130,246,0.05)',
+          bg: '#132338',
           border: '2px dashed #3B82F6',
-          boxShadow: '0 0 12px rgba(59,130,246,0.4)',
-          iconColor: '#3B82F6',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
-          pulse: true
+          boxShadow: '0 0 14px rgba(59,130,246,0.5)',
+          iconBg: '#182E4B',
+          iconColor: '#60A5FA',
+          labelColor: '#FFFFFF',
+          subColor: '#93C5FD',
+          pulse: false
         };
       case 'recovered':
         return {
-          bg: 'rgba(59,130,246,0.10)',
-          border: '1px solid #3B82F6',
-          boxShadow: '0 0 10px rgba(59,130,246,0.3)',
-          iconColor: '#3B82F6',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
+          bg: '#102A22',
+          border: '1.5px solid #10B981',
+          boxShadow: '0 0 12px rgba(16,185,129,0.4)',
+          iconBg: '#153A2E',
+          iconColor: '#34D399',
+          labelColor: '#FFFFFF',
+          subColor: '#6EE7B7',
           pulse: false
         };
       case 'protected':
         return {
-          bg: 'rgba(250,204,21,0.10)',
-          border: '1px solid #FACC15',
-          boxShadow: '0 0 12px rgba(250,204,21,0.5)',
-          iconColor: '#FACC15',
-          labelColor: '#F8FAFC',
-          subColor: '#94A3B8',
+          bg: '#2A2510',
+          border: '1.5px solid #FACC15',
+          boxShadow: '0 0 12px rgba(250,204,21,0.4)',
+          iconBg: '#3C3414',
+          iconColor: '#FDE047',
+          labelColor: '#FFFFFF',
+          subColor: '#FEF08A',
           pulse: false
         };
       case 'healthy':
       default:
-        return simActive
-          ? {
-              // Simulation active: bright visible style so healthy nodes don't look "blacked out"
-              bg: '#1E3A4C',
-              border: '1px solid rgba(100,200,140,0.55)',
-              boxShadow: '0 0 8px rgba(34,197,94,0.15)',
-              iconColor: '#4ADE80',
-              labelColor: '#F1F5F9',
-              subColor: '#94A3B8',
-              pulse: false
-            }
-          : {
-              bg: '#1B2838',
-              border: '1px solid rgba(34,197,94,0.4)',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-              iconColor: '#22C55E',
-              labelColor: '#F8FAFC',
-              subColor: '#94A3B8',
-              pulse: false
-            };
+        return {
+          bg: '#162330',
+          border: '1.5px solid #22C55E',
+          boxShadow: '0 0 10px rgba(34,197,94,0.25)',
+          iconBg: '#111D28',
+          iconColor: '#4ADE80',
+          labelColor: '#FFFFFF',
+          subColor: '#94A3B8',
+          pulse: false
+        };
     }
   };
 
@@ -185,7 +181,7 @@ export default function CustomNode({ id, data, selected }) {
       {/* Main Node Layout Body */}
       <div className="flex items-center gap-2.5">
         {/* Device Icon Panel */}
-        <div className="p-1.5 rounded border border-[#4B5563]/20 flex-shrink-0" style={{ backgroundColor: '#0F1720', color: ss.iconColor }}>
+        <div className="p-1.5 rounded border border-[#4B5563]/30 flex-shrink-0" style={{ backgroundColor: ss.iconBg || '#0F1720', color: ss.iconColor }}>
           {isIsolated ? <Shield className="h-5 w-5" style={{ color: '#3B82F6' }} /> : getDeviceIcon(type)}
         </div>
 

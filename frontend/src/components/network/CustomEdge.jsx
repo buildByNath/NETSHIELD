@@ -22,6 +22,10 @@ export default function CustomEdge({
   data,
   selected,
 }) {
+  if (sourceX === undefined || sourceY === undefined || targetX === undefined || targetY === undefined) {
+    return null;
+  }
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -31,14 +35,20 @@ export default function CustomEdge({
     targetPosition,
   });
 
-  const [reverseEdgePath] = getBezierPath({
-    sourceX: targetX,
-    sourceY: targetY,
-    targetX: sourceX,
-    targetY: sourceY,
-    sourcePosition: targetPosition,
-    targetPosition: sourcePosition,
-  });
+  let reverseEdgePath = '';
+  try {
+    const [rev] = getBezierPath({
+      sourceX: targetX,
+      sourceY: targetY,
+      targetX: sourceX,
+      targetY: sourceY,
+      sourcePosition: targetPosition,
+      targetPosition: sourcePosition,
+    });
+    reverseEdgePath = rev;
+  } catch (err) {
+    reverseEdgePath = edgePath;
+  }
 
   const weight = data?.weight ?? 1;
   const latency = data?.latency ?? 10;
@@ -62,19 +72,19 @@ export default function CustomEdge({
     strokeWidth = 3.5;
   } else if (isTraversed) {
     // Dim red trail — virus already passed through, path stays visible
-    strokeColor = '#C53030';
+    strokeColor = '#EF4444';
     strokeWidth = 2.5;
     strokeDasharray = '6 3';
-    strokeOpacity = 0.85;
+    strokeOpacity = 0.9;
   } else if (selected) {
     strokeColor = '#FD802E';
     strokeWidth = 3.5;
   }
 
   const speed = data?.speed ?? 1.0;
-  const dur = `${1.2 / speed}s`;
+  const dur = `${Math.max(0.3, 1.2 / (speed || 1))}s`;
   const isReverse = data?.pulseSource === target;
-  const pathForPulse = isReverse ? reverseEdgePath : edgePath;
+  const pathForPulse = (isReverse && reverseEdgePath) ? reverseEdgePath : (edgePath || '');
 
   return (
     <>
@@ -83,9 +93,9 @@ export default function CustomEdge({
         <path
           d={edgePath}
           style={{
-            stroke: '#991B1B',
+            stroke: '#DC2626',
             strokeWidth: 6,
-            strokeOpacity: 0.25,
+            strokeOpacity: 0.35,
             fill: 'none',
             pointerEvents: 'none',
           }}
@@ -99,22 +109,22 @@ export default function CustomEdge({
         markerEnd={markerEnd}
         style={{
           ...style,
-          stroke: strokeColor,
-          strokeWidth,
+          stroke: `${strokeColor} !important`,
+          strokeWidth: `${strokeWidth}px !important`,
           strokeDasharray,
           strokeOpacity,
         }}
       />
 
       {/* Active attack pulse dot */}
-      {isSimulation && (
-        <circle r="4.5" fill="#EF4444" className="filter drop-shadow-[0_0_3px_rgba(239,68,68,0.8)]">
+      {isSimulation && pathForPulse && (
+        <circle r="4.5" fill="#EF4444" className="filter drop-shadow-[0_0_5px_rgba(239,68,68,1)]">
           <animateMotion dur={dur} repeatCount="indefinite" path={pathForPulse} />
         </circle>
       )}
 
       {/* Active recovery pulse dot */}
-      {isRecovery && (
+      {isRecovery && pathForPulse && (
         <circle r="4.5" fill="#3B82F6" className="filter drop-shadow-[0_0_3px_rgba(59,130,246,0.8)]">
           <animateMotion dur={dur} repeatCount="indefinite" path={pathForPulse} />
         </circle>
