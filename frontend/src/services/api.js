@@ -6,13 +6,47 @@ import axios from 'axios';
  * Purpose: Axios API service declarations for communicating with FastAPI backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('netshield_backend_url');
+    if (custom && custom.trim()) {
+      let trimmed = custom.trim().replace(/\/+$/, '');
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        trimmed = `https://${trimmed}`;
+      }
+      return trimmed;
+    }
+  }
+
+  let envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (envUrl) {
+    if (!envUrl.startsWith('http://') && !envUrl.startsWith('https://')) {
+      envUrl = `https://${envUrl}`;
+    }
+    return envUrl;
+  }
+
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return '';
+  }
+
+  return 'http://127.0.0.1:8000';
+};
 
 const client = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(),
+  timeout: 20000,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+client.interceptors.request.use((config) => {
+  const currentBase = getApiBaseUrl();
+  if (currentBase) {
+    config.baseURL = currentBase;
+  }
+  return config;
 });
 
 export const templateService = {

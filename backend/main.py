@@ -27,6 +27,19 @@ app.add_middleware(
 app.include_router(api_router)
 
 
+@app.get("/")
+async def root():
+    """
+    Root endpoint for service verification on platforms like Render.
+    """
+    return {
+        "service": "NETSHIELD Backend API",
+        "status": "online",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
+
+
 @app.get("/health")
 async def health_check():
     """

@@ -294,25 +294,29 @@ export function SimulationProvider({ children }) {
       }
       
       if (loadedNodes.length === 0) {
-        const response = await projectService.loadProject();
-        if (response.success && response.project && response.project.network) {
-          const net = response.project.network;
-          if (net.nodes && net.nodes.length > 0) {
-            loadedNodes = (net.nodes || []).map(n => ({
-              id: n.id,
-              type: n.type,
-              position: n.position,
-              data: { label: n.label, status: n.status || 'healthy' }
-            }));
-            
-            loadedEdges = (net.edges || []).map(e => ({
-              id: `e-${e.source}-${e.target}`,
-              source: e.source,
-              target: e.target,
-              type: 'customEdge',
-              data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
-            }));
+        try {
+          const response = await projectService.loadProject();
+          if (response && response.success && response.project && response.project.network) {
+            const net = response.project.network;
+            if (net.nodes && net.nodes.length > 0) {
+              loadedNodes = (net.nodes || []).map(n => ({
+                id: n.id,
+                type: n.type,
+                position: n.position,
+                data: { label: n.label, status: n.status || 'healthy' }
+              }));
+              
+              loadedEdges = (net.edges || []).map(e => ({
+                id: `e-${e.source}-${e.target}`,
+                source: e.source,
+                target: e.target,
+                type: 'customEdge',
+                data: { weight: e.weight, latency: e.latency, bandwidth: e.bandwidth }
+              }));
+            }
           }
+        } catch (projErr) {
+          console.warn('Backend loadProject unavailable (backend may be sleeping or starting up), attempting template fallback:', projErr);
         }
       }
 

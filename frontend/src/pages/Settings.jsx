@@ -1,17 +1,65 @@
-import React, { useState } from 'react';
-import { Settings as SettingsIcon, Save, Sliders, Shield } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings as SettingsIcon, Save, Sliders, Shield, Globe, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useSimulation } from '../context/SimulationContext';
+import client, { getApiBaseUrl } from '../services/api';
 
 /**
  * File: Settings.jsx
  * Author: Antigravity AI
- * Purpose: Application settings page for configuring system limits and interactive simulation timing delays.
+ * Purpose: Application settings page for configuring system limits, backend API endpoints, and interactive simulation timing delays.
  */
 
 export default function Settings() {
   const [devMode, setDevMode] = useState(true);
   const [autosave, setAutosave] = useState(true);
   const [saveInterval, setSaveInterval] = useState(30);
+
+  // Backend API URL management
+  const [backendUrlInput, setBackendUrlInput] = useState(() => getApiBaseUrl());
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'online' | 'offline' | 'checking'
+  const [backendError, setBackendError] = useState('');
+  const [isSavingUrl, setIsSavingUrl] = useState(false);
+
+  const testBackendConnection = async (urlToTest) => {
+    setBackendStatus('checking');
+    setBackendError('');
+    try {
+      const target = (urlToTest || getApiBaseUrl() || '').replace(/\/+$/, '');
+      if (!target) {
+        setBackendStatus('offline');
+        setBackendError('No backend URL provided');
+        return;
+      }
+      const res = await client.get(`${target}/health`, { timeout: 7000 });
+      if (res.data && res.data.status === 'online') {
+        setBackendStatus('online');
+      } else {
+        setBackendStatus('offline');
+        setBackendError('Invalid response from server');
+      }
+    } catch (err) {
+      setBackendStatus('offline');
+      setBackendError(err.message || 'Connection failed');
+    }
+  };
+
+  useEffect(() => {
+    testBackendConnection(backendUrlInput);
+  }, []);
+
+  const handleSaveBackendUrl = () => {
+    setIsSavingUrl(true);
+    let trimmed = (backendUrlInput || '').trim().replace(/\/+$/, '');
+    if (trimmed && !trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      trimmed = `https://${trimmed}`;
+    }
+    setBackendUrlInput(trimmed);
+    localStorage.setItem('netshield_backend_url', trimmed);
+    testBackendConnection(trimmed);
+    setTimeout(() => {
+      setIsSavingUrl(false);
+    }, 600);
+  };
 
   const {
     compromiseTime,
@@ -174,6 +222,83 @@ export default function Settings() {
           </div>
         </div>
 
+      </div>
+
+      {/* Backend API & Cloud Deployment Configuration */}
+      <div className="max-w-2xl bg-[#233D4C] border border-[#4B5563]/25 rounded-xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-[#10B981]"></div>
+        
+        <div className="flex justify-between items-start">
+          <div className="flex gap-4">
+            <div className="p-3 bg-[#10B981]/10 rounded-xl text-[#10B981] border border-[#10B981]/20 flex-shrink-0 h-12 w-12 flex items-center justify-center">
+              <Globe className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-bold text-[#F8FAFC] uppercase tracking-wide">Backend API Endpoint</h3>
+                {backendStatus === 'online' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <CheckCircle2 className="w-3 h-3" /> CONNECTED
+                  </span>
+                )}
+                {backendStatus === 'checking' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> CHECKING
+                  </span>
+                )}
+                {backendStatus === 'offline' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/30">
+                    <AlertCircle className="w-3 h-3" /> OFFLINE / DISCONNECTED
+                  </span>
+                )}
+              </div>
+              <p className="text-[#CBD5E1] text-xs leading-relaxed">
+                Configure the FastAPI service URL (e.g. on Render, Docker, or localhost).
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => testBackendConnection(backendUrlInput)}
+            title="Refresh connection status"
+            className="p-2 bg-[#0F1720]/60 hover:bg-[#0F1720] border border-[#4B5563]/30 text-[#94A3B8] hover:text-[#F8FAFC] rounded-lg transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${backendStatus === 'checking' ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        <div className="border-t border-[#4B5563]/15 pt-5 space-y-4">
+          <div className="p-3 bg-[#0F1720]/40 rounded-lg border border-[#4B5563]/15 space-y-2">
+            <label className="text-[#F8FAFC] font-semibold block text-[11px]">
+              FastAPI Server Base URL
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={backendUrlInput}
+                onChange={(e) => setBackendUrlInput(e.target.value)}
+                placeholder="https://netshield-backend.onrender.com"
+                className="flex-1 bg-[#0F1720] border border-[#4B5563]/30 text-[#F8FAFC] px-3 py-2 rounded-lg outline-none font-mono text-xs focus:border-[#10B981]"
+              />
+              <button
+                onClick={handleSaveBackendUrl}
+                disabled={isSavingUrl}
+                className="px-4 py-2 bg-[#10B981] hover:bg-[#059669] text-white font-semibold rounded-lg flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSavingUrl ? 'Saving...' : 'Save & Connect'}</span>
+              </button>
+            </div>
+            {backendError && (
+              <p className="text-red-400 text-[10px] mt-1 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> {backendError}
+              </p>
+            )}
+            <p className="text-[#94A3B8] text-[10px] mt-1 leading-normal">
+              Tip for Render: If your backend is at <code className="text-[#38BDF8]">https://netshield-backend.onrender.com</code>, paste it above or set <code className="text-[#38BDF8]">VITE_API_BASE_URL</code> in your Render static site dashboard.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

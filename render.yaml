@@ -10,6 +10,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.12
+      - key: PYTHONPATH
+        value: .
 
   # --------------------------------------------------------
   # 2. React (Vite) Frontend Static Site
