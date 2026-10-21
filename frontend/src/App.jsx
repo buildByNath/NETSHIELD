@@ -31,7 +31,7 @@ export default function App() {
       case 'attack':     return <AttackSimulation />;
       case 'recovery':   return <RecoveryPlanner />;
       case 'learning':   return <LearningMode />;
-      case 'comparison': return <Comparison />;
+      // case 'comparison': return <Comparison />; // Temporarily disabled - uncomment whenever needed
       case 'performance':return <Performance />;
       case 'settings':   return <Settings />;
       default:           return <Dashboard />;

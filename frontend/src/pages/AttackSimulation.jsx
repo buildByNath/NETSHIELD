@@ -294,10 +294,7 @@ function SimulationWorkspace() {
                           key={nodeId}
                           onClick={() => {
                             if (reactFlowInstance) {
-                              const nodeObj = nodes.find(n => n.id === nodeId);
-                              if (nodeObj) {
-                                reactFlowInstance.setCenter(nodeObj.position.x + 50, nodeObj.position.y + 20, { zoom: 1.05, duration: 600 });
-                              }
+                              reactFlowInstance.fitView({ padding: 0.25, duration: 400 });
                             }
                           }}
                           className="flex items-center justify-between bg-[#1B2838] border border-[#EF4444]/30 hover:border-[#FD802E] p-1.5 rounded cursor-pointer transition-all"
@@ -479,8 +476,20 @@ function SimulationWorkspace() {
             maxZoom={4}
           >
             <Background color="#4B5563" gap={16} size={1} />
-            <Controls className="react-flow__controls" />
+            <Controls className="react-flow__controls" position="bottom-right" />
           </ReactFlow>
+
+          {/* Floating Fit View / Reset Camera Button */}
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            <button
+              onClick={() => reactFlowInstance && reactFlowInstance.fitView({ padding: 0.25, duration: 500 })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1B2838]/90 hover:bg-[#1B2838] border border-[#4B5563]/40 text-[#CBD5E1] hover:text-[#3B82F6] rounded-lg shadow-xl text-[10px] font-mono transition-all backdrop-blur cursor-pointer"
+              title="Reset camera to view all devices"
+            >
+              <Maximize2 className="h-3.5 w-3.5 text-[#3B82F6]" />
+              <span>Fit View</span>
+            </button>
+          </div>
 
           {/* Legend overlay card */}
           <div className="absolute bottom-4 left-4 bg-[#1B2838]/90 backdrop-blur border border-[#4B5563]/40 p-3 rounded-xl shadow-2xl z-20 font-sans text-[10px] text-[#CBD5E1] pointer-events-auto flex flex-col gap-1.5 min-w-[130px]">

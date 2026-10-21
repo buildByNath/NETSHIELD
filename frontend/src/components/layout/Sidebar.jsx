@@ -17,7 +17,7 @@ export default function Sidebar({ activePage, setActivePage, collapsed, setColla
     { id: 'attack',      label: 'Attack Simulation', icon: <Flame size={18} />,           emoji: '🔥' },
     { id: 'recovery',    label: 'Recovery Planner',  icon: <ShieldAlert size={18} />,     emoji: '🛡️' },
     { id: 'learning',    label: 'Learning Mode',     icon: <BookOpen size={18} />,        emoji: '📚' },
-    { id: 'comparison',  label: 'Comparison',        icon: <BarChart3 size={18} />,       emoji: '📊' },
+    // { id: 'comparison',  label: 'Comparison',        icon: <BarChart3 size={18} />,       emoji: '📊' }, // Temporarily disabled - uncomment whenever needed
     { id: 'performance', label: 'Performance',       icon: <Activity size={18} />,        emoji: '📈' },
     { id: 'settings',    label: 'Settings',          icon: <Settings size={18} />,        emoji: '⚙️' },
   ];
